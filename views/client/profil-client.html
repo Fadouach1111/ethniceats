@@ -59,7 +59,7 @@
 </nav>
 
 <!-- MAIN -->
-<main class="lg:ml-64 min-h-screen pb-12">
+<main class="lg:ml-64 min-h-screen pb-32">
   <!-- Header mobile -->
   <header class="px-5 lg:px-10 pt-8 pb-4 lg:pt-10 text-center lg:text-center">
     <h1 class="font-headline text-3xl lg:text-4xl text-primary font-bold">Mon profil</h1>
@@ -139,6 +139,22 @@
   </div>
 </main>
 
+<!-- BOTTOM NAV MOBILE -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-4 bg-[#fbf9f8]/90 backdrop-blur-2xl rounded-t-[2rem] shadow-[0_-12px_32px_rgba(27,28,28,0.04)] font-['Manrope'] text-[11px] font-medium uppercase tracking-widest">
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/accueil">
+    <span class="material-symbols-outlined mb-1">home</span><span>Accueil</span>
+  </a>
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/panier">
+    <span class="material-symbols-outlined mb-1">shopping_bag</span><span>Panier</span>
+  </a>
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/suivi-commande">
+    <span class="material-symbols-outlined mb-1">local_shipping</span><span>Suivi</span>
+  </a>
+  <a class="nav-item active flex flex-col items-center justify-center px-4 py-2 transition-all" href="/profil-client">
+    <span class="material-symbols-outlined mb-1">person</span><span>Profil</span>
+  </a>
+</nav>
+
 <!-- POPUP DÉCONNEXION -->
 <div id="modal-deconnexion" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-primary/40 backdrop-blur-sm">
   <div class="bg-surface w-full max-w-[340px] rounded-3xl p-8 shadow-2xl text-center">
@@ -169,8 +185,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('profil-content').classList.remove('hidden');
     if (result.success && result.profil) {
       const p = result.profil;
-      document.getElementById('profil-nom').textContent = p.nom || p.displayName || 'Utilisateur';
-      document.getElementById('profil-email').textContent = p.email || '';
+      const nomComplet = p.nomComplet || p.nom || p.displayName || utilisateur?.nomComplet || user?.nomComplet || '';
+      document.getElementById('profil-nom').textContent = nomComplet || '—';
+      document.getElementById('profil-email').textContent = p.email || user?.email || '';
     }
   } catch(e) {
     console.error('[profil]', e);

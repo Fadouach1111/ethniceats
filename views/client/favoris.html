@@ -116,6 +116,7 @@
 </div>
 
 <script type="module">
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 import { getFavoris, toggleFavori } from '../../controllers/clientController.js';
 import { getCurrentUser } from '../../services/authService.js';
 import { RECETTES } from '../../data/recettes.js';
@@ -161,6 +162,8 @@ function hydraterFavoris(ids) {
 // -----------------------------
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    
+    await setupEmailVerificationBanner();
     const user = await getCurrentUser();
 
     console.log('[favoris] user:', user);

@@ -330,18 +330,35 @@ import { setupEmailVerificationBanner } from '../../services/emailVerificationBa
 import { getPanierPourCheckout, viderPanier } from '../../controllers/panierController.js';
 import { creerCommande } from '../../controllers/commandeController.js';
 import { getCurrentUser } from '../../services/authService.js';
+import { getPreferences } from '../../controllers/clientController.js';
 import { getIconeSVG } from '../../services/ingredientIcons.js';
 
 // ===== ÉTAT =====
 let panierCheckout = null;
 let modePaiement = 'livraison'; // 'livraison' | 'carte'
-const preferences = _getPrefs();
+let preferences = _getPrefs();
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await setupEmailVerificationBanner();
     panierCheckout = await getPanierPourCheckout();
+
+    let clientId = null;
+    try {
+      const user = await getCurrentUser();
+      clientId = user?.uid || null;
+    } catch(e) {}
+    if (clientId) {
+      try {
+        const prefs = await getPreferences(clientId);
+        if (prefs?.success && prefs.preferences) {
+          preferences = { ...preferences, ...prefs.preferences };
+          try { localStorage.setItem('ethniceats_preferences', JSON.stringify(preferences)); } catch(e) {}
+        }
+      } catch(e) {}
+    }
+
     document.getElementById('skeleton').classList.add('hidden');
 
     if (!panierCheckout || !panierCheckout.ingredients || panierCheckout.ingredients.length === 0) {
@@ -604,7 +621,12 @@ window.soumettre = async function() {
 function _getPrefs() {
   try {
     const raw = localStorage.getItem('ethniceats_preferences');
-    return raw ? JSON.parse(raw) : { sourcePreferee: 'mix', budget: 'moyen', priorite: 'moins_cher' };
+    const parsed = raw ? JSON.parse(raw) : null;
+    return {
+      sourcePreferee: parsed?.sourcePreferee || 'mix',
+      budget: parsed?.budget || 'moyen',
+      priorite: parsed?.priorite || 'moins_cher',
+    };
   } catch(e) { return { sourcePreferee: 'mix', budget: 'moyen', priorite: 'moins_cher' }; }
 }
 

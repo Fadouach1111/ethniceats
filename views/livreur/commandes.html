@@ -70,11 +70,6 @@
   <a href="/livreur/commandes" class="sidebar-item active flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">receipt_long</span>Commandes</a>
   <a href="/livreur/en-cours" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">local_shipping</span>En cours</a>
   <a href="/livreur/profil" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">person</span>Profil</a>
-  <div class="mt-auto w-full">
-    <button onclick="confirmerDeconnexion()" class="sidebar-item flex items-center gap-3 w-full px-4 py-3 text-error hover:text-error">
-      <span class="material-symbols-outlined">logout</span>Déconnexion
-    </button>
-  </div>
 </nav>
 
 <!-- MAIN -->
@@ -235,6 +230,7 @@ function buildCard(cmd) {
   const nb      = cmd.nbIngredients ?? cmd.panier?.length ?? 0;
   const adr     = cmd.adresseLivraison?.adresse ?? '—';
   const tel     = cmd.adresseLivraison?.telephone ?? '—';
+  const telHref = tel !== '—' ? tel.replace(/\s+/g, '') : '';
   const mode    = cmd.modePaiement === 'carte' ? 'En ligne' : 'À la livraison';
   const temps   = cmd.tempsEstime  ? `${cmd.tempsEstime} min` : '30-45 min';
   const id      = `card-${cmd.id.replace(/[^a-z0-9]/gi,'_')}`;
@@ -274,7 +270,7 @@ function buildCard(cmd) {
       </div>
       <div class="flex items-center gap-2 text-sm text-on-surface font-semibold">
         <span class="material-symbols-outlined" style="font-size:18px;">phone</span>
-        <span>${tel}</span>
+        ${telHref ? `<a href="tel:${telHref}" class="text-primary underline underline-offset-4">${tel}</a>` : '<span>—</span>'}
       </div>
     </div>
     <!-- Buttons -->
@@ -295,7 +291,11 @@ function buildCard(cmd) {
       <!-- Ingrédients -->
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Ingrédients</p>
       <div class="flex flex-col gap-1 mb-4">
-        ${(cmd.panier || []).map(i => `<p class="text-sm text-on-surface">${i.nom} <span class="text-on-surface-variant">— ${i.quantite} ${i.unite || ''}</span></p>`).join('')}
+        ${(cmd.panier || []).map(i => {
+          const qte = i.quantitePanier ?? i.quantiteRecette ?? i.quantite ?? 0;
+          const unite = i.type === 'pack' ? (i.unite || 'pack') : (i.unite || '');
+          return `<p class="text-sm text-on-surface">${i.nom} <span class="text-on-surface-variant">— ${qte} ${unite}</span></p>`;
+        }).join('')}
       </div>
       <!-- Points de collecte -->
       ${(cmd.pointsCollecte || []).length ? `

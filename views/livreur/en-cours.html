@@ -86,11 +86,6 @@
   <a href="/livreur/commandes" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">receipt_long</span>Commandes</a>
   <a href="/livreur/en-cours" class="sidebar-item active flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">local_shipping</span>En cours</a>
   <a href="/livreur/profil" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">person</span>Profil</a>
-  <div class="mt-auto w-full">
-    <button onclick="confirmerDeconnexion()" class="sidebar-item flex items-center gap-3 w-full px-4 py-3 text-error hover:text-error">
-      <span class="material-symbols-outlined">logout</span>Déconnexion
-    </button>
-  </div>
 </nav>
 
 <!-- MAIN -->
@@ -191,7 +186,7 @@
               <div class="flex justify-between text-sm font-bold border-t border-outline-variant/20 pt-1.5 mt-0.5"><span>Total</span><span id="c-total2" class="text-primary"></span></div>
             </div>
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Adresse complète</p>
-            <p id="c-adr-full" class="text-sm text-on-surface italic"></p>
+            <p id="c-adr-full" class="text-sm text-on-surface"></p>
           </div>
         </div>
       </div>
@@ -282,7 +277,10 @@ function fillCard(cmd) {
   document.getElementById('c-temps').textContent   = cmd.tempsEstime ? `${cmd.tempsEstime} min` : '30-45 min';
   document.getElementById('c-nb').textContent      = `${nb} ingrédient${nb > 1 ? 's' : ''}`;
   document.getElementById('c-adr').textContent     = cmd.adresseLivraison?.adresse ?? '—';
-  document.getElementById('c-phone').textContent   = cmd.adresseLivraison?.telephone ?? '—';
+  const tel = cmd.adresseLivraison?.telephone ?? '—';
+  document.getElementById('c-phone').innerHTML    = tel !== '—'
+    ? `<a href="tel:${tel.replace(/\s+/g, '')}" class="text-primary underline underline-offset-4">${tel}</a>`
+    : '—';
   document.getElementById('c-sous-total').textContent = `${cmd.sousTotal ?? 0} MAD`;
   document.getElementById('c-frais').textContent   = `${cmd.fraisLivraison ?? 0} MAD`;
   document.getElementById('c-total2').textContent  = `${cmd.prixTotal} MAD`;
@@ -293,7 +291,9 @@ function fillCard(cmd) {
   (cmd.panier || []).forEach(i => {
     const p = document.createElement('p');
     p.className = 'text-sm text-on-surface';
-    p.innerHTML = `${i.nom} <span class="text-on-surface-variant">— ${i.quantite} ${i.unite || ''}</span>`;
+    const qte = i.quantitePanier ?? i.quantiteRecette ?? i.quantite ?? 0;
+    const unite = i.type === 'pack' ? (i.unite || 'pack') : (i.unite || '');
+    p.innerHTML = `${i.nom} <span class="text-on-surface-variant">— ${qte} ${unite}</span>`;
     ingEl.appendChild(p);
   });
 

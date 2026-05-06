@@ -55,7 +55,7 @@
 </nav>
 
 <!-- MAIN -->
-<main class="lg:ml-64 min-h-screen pb-36">
+<main class="lg:ml-64 min-h-screen pb-36 lg:pb-36">
 
   <!-- Header fixe -->
   <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant/10 px-5 lg:px-10 h-16 flex items-center gap-4">
@@ -136,31 +136,48 @@
 </main>
 
 <!-- BOUTON FIXE BAS -->
-<footer class="fixed bottom-0 left-0 lg:left-64 right-0 z-30 bg-gradient-to-t from-surface via-surface/95 to-transparent pt-10 pb-8 px-5 flex justify-center">
+<footer class="fixed bottom-24 lg:bottom-0 left-0 lg:left-64 right-0 z-30 bg-gradient-to-t from-surface via-surface/95 to-transparent pt-10 pb-8 px-5 flex justify-center">
   <button id="btn-sauvegarder" onclick="sauvegarderInfos()"
     class="w-full max-w-md bg-primary text-on-primary rounded-full py-4 font-semibold text-sm uppercase tracking-widest shadow-xl shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all">
     Enregistrer les modifications
   </button>
 </footer>
 
+<!-- BOTTOM NAV MOBILE -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-4 bg-[#fbf9f8]/90 backdrop-blur-2xl rounded-t-[2rem] shadow-[0_-12px_32px_rgba(27,28,28,0.04)] font-['Manrope'] text-[11px] font-medium uppercase tracking-widest">
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/accueil">
+    <span class="material-symbols-outlined mb-1">home</span><span>Accueil</span>
+  </a>
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/panier">
+    <span class="material-symbols-outlined mb-1">shopping_bag</span><span>Panier</span>
+  </a>
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/suivi-commande">
+    <span class="material-symbols-outlined mb-1">local_shipping</span><span>Suivi</span>
+  </a>
+  <a class="nav-item active flex flex-col items-center justify-center px-4 py-2 transition-all" href="/profil-client">
+    <span class="material-symbols-outlined mb-1">person</span><span>Profil</span>
+  </a>
+</nav>
+
 <script type="module">
 import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 import { handleModifierProfil, handleModifierMotDePasse, protegerPage } from '../../controllers/authController.js';
 import { getProfil } from '../../controllers/clientController.js';
-import { getCurrentUser } from '../../services/authService.js';
 
 let clientId = 'client_anonymous';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // const utilisateur = // await protegerPage('client'); // BYPASS TEST // BYPASS TEST
+  const utilisateur = await protegerPage('client');
   await setupEmailVerificationBanner();
   if (!utilisateur) return;
   if (utilisateur?.uid) clientId = utilisateur.uid;
+  document.getElementById('field-nom').value = utilisateur.nomComplet || utilisateur.nom || utilisateur.displayName || '';
+  document.getElementById('field-email').value = utilisateur.email || '';
   try {
     const result = await getProfil(clientId);
     if (result.success && result.profil) {
-      document.getElementById('field-nom').value = result.profil.nomComplet || result.profil.nom || result.profil.displayName || '';
-      document.getElementById('field-email').value = result.profil.email || '';
+      document.getElementById('field-nom').value = result.profil.nomComplet || result.profil.nom || result.profil.displayName || utilisateur.nomComplet || '';
+      document.getElementById('field-email').value = result.profil.email || utilisateur.email || '';
     }
   } catch(e) { console.error('[modifier-profil]', e); }
 });

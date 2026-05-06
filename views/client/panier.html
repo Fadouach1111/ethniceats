@@ -87,24 +87,20 @@
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* Animation entrée carte */
   @keyframes slideIn {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
   }
   .cart-item { animation: slideIn 0.25s ease-out both; }
 
-  /* Skeleton */
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   .skeleton { animation: pulse 1.5s ease-in-out infinite; background: #e5e2e1; border-radius: 0.75rem; }
 
-  /* Popup overlay */
   .overlay { background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); }
 </style>
 </head>
 <body class="bg-surface text-on-surface min-h-screen">
 
-<!-- ===== SIDEBAR DESKTOP ===== -->
 <nav class="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-surface-container-low border-r border-outline-variant/20 flex-col items-start px-4 py-10 gap-2 z-40">
   <div class="mb-8 px-2">
     <h1 class="font-headline text-2xl text-primary font-bold">EthnicEats</h1>
@@ -123,20 +119,17 @@
   </a>
 </nav>
 
-<!-- ===== MAIN ===== -->
 <main class="lg:ml-64 min-h-screen flex flex-col">
 
-  <!-- Header -->
   <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md px-5 pt-6 pb-3 lg:px-10 lg:pt-8 lg:pb-4">
     <div class="flex items-center gap-3">
-      <button onclick="history.back()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-primary flex-shrink-0">
+      <button onclick="window.location.href='/accueil'" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-primary flex-shrink-0">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
       <h1 id="page-title" class="font-headline text-3xl lg:text-4xl text-primary font-bold leading-tight">Mon panier</h1>
     </div>
   </header>
 
-  <!-- ===== ÉTAT VIDE ===== -->
   <div id="empty-state" class="hidden flex-1 flex flex-col items-center justify-center text-center px-6 lg:-mt-12">
     <div class="space-y-8 flex flex-col items-center">
       <div class="relative flex items-center justify-center group">
@@ -159,20 +152,14 @@
         Découvrir les recettes
       </a>
     </div>
-    <!-- Déco fond -->
     <div class="fixed -bottom-40 -left-40 w-80 h-80 bg-primary/5 blur-[100px] rounded-full pointer-events-none"></div>
     <div class="fixed top-1/3 -right-20 w-64 h-64 bg-secondary-fixed/10 blur-[80px] rounded-full pointer-events-none"></div>
   </div>
 
-  <!-- ===== ÉTAT REMPLI ===== -->
   <div id="filled-state" class="hidden flex-1 flex flex-col">
 
-    <!-- Liste ingrédients -->
-    <div class="flex-1 overflow-y-auto hide-scrollbar px-5 lg:px-10 py-4 pb-36 space-y-3" id="ingredients-list">
-      <!-- Généré par JS -->
-    </div>
+    <div class="flex-1 overflow-y-auto hide-scrollbar px-5 lg:px-10 py-4 pb-36 space-y-3" id="ingredients-list"></div>
 
-    <!-- Barre récap fixe en bas -->
     <div class="fixed bottom-0 left-0 lg:left-64 right-0 bg-white border-t border-surface-container-low shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem] z-30">
       <div class="px-6 lg:px-10 pt-5 pb-7 flex items-center justify-between gap-4">
         <div>
@@ -188,7 +175,6 @@
 
   </div>
 
-  <!-- Skeleton loading -->
   <div id="skeleton" class="px-5 lg:px-10 py-4 space-y-3">
     <div class="skeleton h-24 w-full"></div>
     <div class="skeleton h-24 w-full"></div>
@@ -197,7 +183,6 @@
 
 </main>
 
-<!-- ===== POPUP SUPPRESSION ===== -->
 <div id="popup-suppression" class="hidden fixed inset-0 z-50 overlay flex items-center justify-center px-6">
   <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
     <div class="w-14 h-14 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-4">
@@ -216,7 +201,6 @@
   </div>
 </div>
 
-<!-- ===== TOAST ===== -->
 <div id="toast" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-on-surface text-inverse-on-surface px-5 py-3 rounded-full text-sm font-semibold shadow-xl whitespace-nowrap transition-all"></div>
 
 <script type="module">
@@ -234,12 +218,10 @@ import {
 
 import { getIconeSVG } from '../../services/ingredientIcons.js';
 
-// ===== ÉTAT GLOBAL =====
 let panierData = null;
 let ingredientASupprimer = null;
 const preferences = _getPreferences();
 
-// ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
   await setupEmailVerificationBanner();
   await chargerPanier();
@@ -285,7 +267,6 @@ function afficherEtatRempli() {
   updateTotal();
 }
 
-// ===== RENDU LISTE =====
 function renderIngredients() {
   const list = document.getElementById('ingredients-list');
   list.innerHTML = '';
@@ -295,22 +276,18 @@ function renderIngredients() {
     card.style.animationDelay = `${idx * 40}ms`;
     card.dataset.nom = ing.nom;
 
-    // Prix affiché
     const prixAffiche = _prixIngredient(ing);
 
-    // Quantité affichée
     const qteAffichee = ing.type === 'pack'
       ? `${ing.quantitePanier} pack${ing.quantitePanier > 1 ? 's' : ''}`
       : `${ing.quantiteRecette} ${ing.unite}`;
 
     card.innerHTML = `
-      <!-- Bouton suppression -->
       <button onclick="demanderSuppression('${ing.nom.replace(/'/g, "\\'")}')"
         class="absolute -top-2 -left-2 w-7 h-7 bg-white shadow-md border border-surface-container-high rounded-full flex items-center justify-center text-on-surface-variant hover:text-error active:scale-90 transition-all z-10">
         <span class="material-symbols-outlined text-[14px]">close</span>
       </button>
 
-      <!-- Image / icône -->
       <div class="w-16 h-16 lg:w-20 lg:h-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface-container flex items-center justify-center border border-outline-variant/10">
         ${ing.image
           ? `<img src="${ing.image}" alt="${ing.nom}" class="w-full h-full object-cover"/>`
@@ -321,14 +298,12 @@ function renderIngredients() {
         }
       </div>
 
-      <!-- Infos -->
       <div class="flex-1 min-w-0">
         <p class="font-bold text-primary text-sm lg:text-base truncate">${ing.nom}</p>
         <p class="text-on-surface-variant text-xs lg:text-sm mt-0.5">${qteAffichee}</p>
         <p class="text-secondary font-bold text-sm lg:text-base mt-1">${prixAffiche} MAD</p>
       </div>
 
-      <!-- Contrôles quantité -->
       <div class="flex flex-col items-center gap-1.5 bg-surface-container-low rounded-full px-2 py-2 border border-outline-variant/15 flex-shrink-0">
         <button onclick="augmenterQuantite('${ing.nom.replace(/'/g, "\\'")}', '${ing.type}')"
           class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white active:scale-90 transition-all text-primary">
@@ -345,10 +320,7 @@ function renderIngredients() {
   });
 }
 
-// ===== PRIX =====
 function _prixIngredient(ing) {
-  // Si le panier provient du panierController, `prixUnitaire` est déjà calculé
-  // selon les préférences. Sinon, fallback sur l'ancien calcul.
   let prix;
   if (ing.prixUnitaire != null) {
     prix = ing.prixUnitaire;
@@ -372,13 +344,9 @@ async function updateTotal() {
   if (!panierData) return;
   let total = 0;
   (panierData.ingredients || []).forEach(ing => { total += _prixIngredient(ing); });
-  // Frais livraison
-  const source = preferences.sourcePreferee || 'mix';
-  const frais = source === 'souk' ? 15 : source === 'supermarche' ? 20 : 17;
-  document.getElementById('prix-total').textContent = `${total} MAD`;
+  document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? total} MAD`;
 }
 
-// ===== SUPPRIMER =====
 window.demanderSuppression = function(nom) {
   ingredientASupprimer = nom;
   document.getElementById('popup-ing-nom').textContent =
@@ -406,7 +374,6 @@ window.confirmerSuppression = async function() {
     showToast('Ingrédient supprimé');
   } catch (e) {
     console.error(e);
-    // Fallback localStorage direct
     _supprimerLocal(ingredientASupprimer);
     fermerPopupSuppression();
   }
@@ -426,7 +393,6 @@ function _supprimerLocal(nom) {
   } catch(e) {}
 }
 
-// ===== MODIFIER QUANTITÉ =====
 window.augmenterQuantite = async function(nom, type) {
   try {
     const ing = panierData.ingredients.find(i => i.nom === nom);
@@ -468,7 +434,6 @@ window.diminuerQuantite = async function(nom, type) {
 };
 
 function _step(ing) {
-  // Incrément selon l'unité
   if (ing.unite === 'kg') return 0.1;
   if (ing.unite === 'ml') return 50;
   if (ing.unite === 'g') return 50;
@@ -492,12 +457,10 @@ function _augmenterLocal(nom, type) {
   } catch(e) {}
 }
 
-// ===== CHECKOUT =====
 window.passerCommande = function() {
   window.location.href = '/checkout';
 };
 
-// ===== PRÉFÉRENCES =====
 function _getPreferences() {
   try {
     const raw = localStorage.getItem('ethniceats_preferences');
@@ -507,7 +470,6 @@ function _getPreferences() {
   }
 }
 
-// ===== TOAST =====
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;

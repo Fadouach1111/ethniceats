@@ -209,6 +209,16 @@
           <p class="text-xs font-bold text-primary">${cmd.tempsEstime ?? '—'} min</p>
         </div>
         <div class="col-span-2">
+          <p class="text-[9px] font-bold text-outline uppercase tracking-wider mb-1">Ingrédients</p>
+          <div class="space-y-0.5 mb-3">
+            ${(cmd.panier || []).map(i => {
+              const qte = i.quantitePanier ?? i.quantiteRecette ?? i.quantite ?? 0;
+              const unite = i.type === 'pack' ? (i.unite || 'pack') : (i.unite || '');
+              return `<div class="flex justify-between text-xs gap-3"><span class="text-on-surface-variant truncate">${i.nom}</span><span class="font-medium flex-shrink-0">${qte} ${unite}</span></div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="col-span-2">
           <p class="text-[9px] font-bold text-outline uppercase tracking-wider mb-1">Détail paiement</p>
           <div class="space-y-0.5">
             <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Sous-total</span><span class="font-medium">${cmd.sousTotal ?? 0} MAD</span></div>

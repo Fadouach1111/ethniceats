@@ -87,9 +87,11 @@ const _refCommandesDisponibles = ref(rtdb, 'commandesDisponibles');
  *
  * @param {string}   commandeId  - identifiant de la commande (ex : "ORD-1024")
  * @param {Function} callback    - appelé à chaque changement : callback(statut: string | null, erreur?: Error)
+ * @param {Object}   handlers    - callbacks optionnels par statut :
+ *                                 { onConfirmee?, onArrive?, onLivree? }
  * @returns {import('firebase/database').DatabaseReference} référence active (passer à stopperEcoute pour arrêter)
  */
-export function ecouterStatutCommande(commandeId, callback) {
+export function ecouterStatutCommande(commandeId, callback, handlers = {}) {
   if (!commandeId || typeof commandeId !== 'string') {
     throw new Error('ecouterStatutCommande : commandeId est obligatoire.');
   }
@@ -113,6 +115,20 @@ export function ecouterStatutCommande(commandeId, callback) {
       }
 
       callback(statut, null);
+
+      const handlerParStatut = {
+        confirmee: 'onConfirmee',
+        arrive: 'onArrive',
+        livree: 'onLivree',
+      };
+      const handler = handlers?.[handlerParStatut[statut]];
+      if (typeof handler === 'function') {
+        try {
+          handler(commandeId, statut);
+        } catch (erreurHandler) {
+          console.error(`ecouterStatutCommande [${commandeId}] handler ${handlerParStatut[statut]} :`, erreurHandler);
+        }
+      }
     },
     (erreur) => {
       console.error(`ecouterStatutCommande [${commandeId}] erreur :`, erreur);
