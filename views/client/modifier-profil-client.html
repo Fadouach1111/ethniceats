@@ -144,6 +144,7 @@
 </footer>
 
 <script type="module">
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 import { handleModifierProfil, handleModifierMotDePasse, protegerPage } from '../../controllers/authController.js';
 import { getProfil } from '../../controllers/clientController.js';
 import { getCurrentUser } from '../../services/authService.js';
@@ -152,6 +153,7 @@ let clientId = 'client_anonymous';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // const utilisateur = // await protegerPage('client'); // BYPASS TEST // BYPASS TEST
+  await setupEmailVerificationBanner();
   if (!utilisateur) return;
   if (utilisateur?.uid) clientId = utilisateur.uid;
   try {

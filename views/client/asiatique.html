@@ -215,6 +215,12 @@
 <script type="module">
 import { protegerPage } from '../../controllers/authController.js';
 import { getRecettesParCategorie, getRecettesParSousCategorie } from '../../controllers/recetteController.js';
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
+
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await setupEmailVerificationBanner();
+});
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 // const utilisateur = await protegerPage('client');

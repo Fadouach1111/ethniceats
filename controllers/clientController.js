@@ -251,7 +251,7 @@ async function getFavoris(clientId) {
     }
 
     const favorisIds = await _getFavorisFS(clientId);
-
+    console.log(`[clientController.getFavoris] favorisIds pour clientId=${clientId}`, favorisIds);
     return { success: true, favorisIds, message: "" };
 
   } catch (error) {

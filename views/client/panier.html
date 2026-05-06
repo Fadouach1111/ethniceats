@@ -221,6 +221,10 @@
 
 <script type="module">
 import {
+  setupEmailVerificationBanner
+} from '../../services/emailVerificationBanner.js';
+
+import {
   getPanier,
   sauvegarderPanier,
   supprimerIngredient,
@@ -237,6 +241,7 @@ const preferences = _getPreferences();
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
+  await setupEmailVerificationBanner();
   await chargerPanier();
 });
 

@@ -108,11 +108,13 @@
 <script type="module">
 import { getHistorique } from '../../controllers/clientController.js';
 import { getCurrentUser } from '../../services/authService.js';
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 
 let clientId = 'client_anonymous';
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    await setupEmailVerificationBanner();
     const user = await getCurrentUser();
     if (user?.uid) clientId = user.uid;
   } catch(e) {}

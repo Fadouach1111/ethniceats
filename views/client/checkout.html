@@ -325,6 +325,8 @@
 <div id="toast" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-error text-on-error px-5 py-3 rounded-full text-sm font-semibold shadow-xl whitespace-nowrap"></div>
 
 <script type="module">
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
+
 import { getPanierPourCheckout, viderPanier } from '../../controllers/panierController.js';
 import { creerCommande } from '../../controllers/commandeController.js';
 import { getCurrentUser } from '../../services/authService.js';
@@ -338,6 +340,7 @@ const preferences = _getPrefs();
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    await setupEmailVerificationBanner();
     panierCheckout = await getPanierPourCheckout();
     document.getElementById('skeleton').classList.add('hidden');
 

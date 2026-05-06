@@ -8,7 +8,8 @@
  *
  * Pages gérées :
  *   - choix-role.html      → initChoixRole()
- *   - auth/inscription.html / auth/connexion.html → handleRegister(), handleLogin()
+ *   - auth/register.html   → handleRegister()
+ *   - auth/login.html      → handleLogin()
  *   - auth/verification.html → handleVerificationOTP()
  *   - client/preferences.html (post-OTP client)
  *   - Toutes les pages protégées → protegerPage()
@@ -46,7 +47,7 @@ const ROUTES = {
   connexion:      "/login",
   verification:   "/verification",
   preferences:    "/preferences",
-  clientAccueil:  "/views/client/accueil",
+  clientAccueil:  "/accueil",
   livreurCommandes: "/livreur/commandes",
 };
 
@@ -73,7 +74,7 @@ function _routeParRole(role) {
 // ─── initChoixRole ────────────────────────────────────────────────────────────
 
 /**
- * Initialise la page de choix du rôle (choix-role.html).
+ * Initialise la page de choix du rôle.
  *
  * Vérifie si un utilisateur est déjà connecté et redirige automatiquement
  * vers son interface sans repasser par le choix du rôle.
@@ -96,7 +97,6 @@ async function initChoixRole() {
 
   } catch (error) {
     console.error("[authController.initChoixRole]", error.message);
-    // En cas d'erreur on reste sur la page — pas de redirection
     return { redirige: false, role: null };
   }
 }
@@ -107,24 +107,31 @@ async function initChoixRole() {
  * Gère l'inscription d'un client ou d'un livreur.
  *
  * Flux :
- *  1. Valide la cohérence des données du formulaire (côté controller).
+ *  1. Valide la cohérence des données du formulaire.
  *  2. Délègue la création du compte à authService.register().
- *  3. En cas de succès, authService redirige vers verification.html.
- *  4. Retourne un objet résultat à la vue pour l'affichage des erreurs.
+ *  3. Retourne un objet résultat à la vue pour l'affichage.
  *
- * @param {FormData|Object} formData - Données issues du formulaire d'inscription.
+ * @param {FormData|Object} formData - Données du formulaire d'inscription.
  *   Champs attendus :
  *     nomComplet      {string}       — obligatoire, ≥ 2 caractères
  *     email           {string}       — obligatoire
  *     motDePasse      {string}       — obligatoire, ≥ 6 caractères
  *     confirmMdp      {string}       — doit correspondre à motDePasse
- *     role            {string}       — "client" | "livreur" (lu depuis sessionStorage si absent)
+ *     role            {string}       — "client" | "livreur"
  *     telephoneContact {string|null} — obligatoire si role === "livreur"
  *
  * @returns {Promise<{ success: boolean, message: string }>}
  */
 async function handleRegister(formData) {
   try {
+    const currentUser = await getCurrentUser();
+
+    if (currentUser?.uid) {
+      return {
+        success: false,
+        message: "Vous êtes déjà connecté. Déconnectez-vous avant de créer un nouveau compte.",
+      };
+    }
     // ── Normalisation de l'entrée ──────────────────────────────────────────
     const données = formData instanceof FormData
       ? Object.fromEntries(formData.entries())
@@ -138,7 +145,7 @@ async function handleRegister(formData) {
       telephoneContact = null,
     } = données;
 
-    // Le rôle peut provenir du formulaire ou du sessionStorage (défini sur choix-role.html)
+    // Le rôle peut provenir du formulaire ou du sessionStorage
     const role = données.role || sessionStorage.getItem(SESSION_KEYS.rolePending) || "";
 
     // ── Validations controller ─────────────────────────────────────────────
@@ -179,12 +186,11 @@ async function handleRegister(formData) {
 // ─── handleLogin ─────────────────────────────────────────────────────────────
 
 /**
- * Gère la connexion par email + mot de passe et redirige selon le rôle.
+ * Gère la connexion par email + mot de passe.
  *
  * Flux :
  *  1. Délègue à authService.login().
- *  2. En cas de succès, authService redirige vers l'interface du rôle.
- *  3. Retourne un objet résultat à la vue pour l'affichage des messages.
+ *  2. Retourne un objet résultat à la vue.
  *
  * @param {string} email
  * @param {string} motDePasse
@@ -216,7 +222,7 @@ async function handleLogin(email, motDePasse) {
 // ─── handleLogout ─────────────────────────────────────────────────────────────
 
 /**
- * Déconnecte l'utilisateur et redirige vers choix-role.html.
+ * Déconnecte l'utilisateur et redirige vers choix-role.
  *
  * @returns {Promise<{ success: boolean, message: string }>}
  */
@@ -246,15 +252,12 @@ async function handleLogout() {
 // ─── handleVerificationOTP ────────────────────────────────────────────────────
 
 /**
- * Vérifie que l'email de l'utilisateur a bien été validé (OTP cliqué dans l'email),
- * puis redirige vers la bonne interface selon le rôle.
+ * Vérifie que l'email de l'utilisateur a bien été validé.
  *
- * Règles de redirection post-OTP :
- *   - Client  → preferences.html  (définir ses préférences avant l'accueil)
- *   - Livreur → commandes.html    (accès direct à l'interface livreur)
+ * Retourne l'état de vérification — la vue décide de la redirection ou de l'affichage.
+ * La vérification est OPTIONNELLE après la création du compte.
  *
- * À appeler au DOMContentLoaded de verification.html ET sur le bouton
- * "J'ai vérifié mon email" si la vue en propose un.
+ * À appeler sur demande utilisateur (bouton "J'ai vérifié mon email"), PAS au DOMContentLoaded.
  *
  * @returns {Promise<{ success: boolean, role: string|null, vérifié: boolean, message: string }>}
  */
@@ -262,33 +265,30 @@ async function handleVerificationOTP() {
   try {
     const résultat = await verifierEmail();
 
-    if (résultat.success && résultat.vérifié) {
-      const role = résultat.role
-        || sessionStorage.getItem(SESSION_KEYS.rolePending)
-        || null;
+    const role = résultat.role
+      || sessionStorage.getItem(SESSION_KEYS.rolePending)
+      || null;
 
-      // Nettoyage sessionStorage après vérification réussie
+    if (résultat.vérifié) {
+      // Best-effort sign out so the user lands on the login screen as requested
+      try {
+        await fbSignOut(getAuth());
+      } catch (signOutErr) {
+        console.warn("[authController.handleVerificationOTP] signOut failed:", signOutErr?.message || signOutErr);
+      }
+
+      // Cleanup pending session keys
       sessionStorage.removeItem(SESSION_KEYS.rolePending);
       sessionStorage.removeItem(SESSION_KEYS.uidPending);
       sessionStorage.removeItem("ee_email_pending");
 
-      // Redirection différenciée selon le rôle
-      if (role === "client") {
-        // Exigence UX : après vérification email, le client passe d'abord
-        // par l'écran des préférences, puis seulement ensuite Accueil.
-        _rediriger(ROUTES.preferences);
-      } else if (role === "livreur") {
-        _rediriger(ROUTES.livreurCommandes);
-      } else {
-        // Rôle inconnu — retour à l'écran de choix par sécurité
-        _rediriger(ROUTES.choixRole);
-      }
+      // Redirect to login
+      _rediriger(ROUTES.connexion);
 
       return { ...résultat, role };
     }
 
-    return résultat;
-
+    return { ...résultat, role };
   } catch (error) {
     console.error("[authController.handleVerificationOTP]", error.message);
     return {
@@ -305,13 +305,9 @@ async function handleVerificationOTP() {
 /**
  * Modifie le profil de l'utilisateur connecté.
  *
- * Délègue à authService.modifierProfil(). Si l'email change, le service
- * envoie un lien de vérification au nouvel email et redirige vers verification.html.
- *
- * @param {string} userId   - UID Firebase de l'utilisateur connecté
- * @param {Object} données  - Champs à mettre à jour :
+ * @param {string} userId   - UID Firebase de l'utilisateur
+ * @param {Object} données  - Champs à mettre à jour
  *   { nomComplet?, email?, telephoneContact? }
- *   Seuls les champs présents sont mis à jour.
  *
  * @returns {Promise<{ success: boolean, emailChange: boolean, message: string }>}
  */
@@ -350,8 +346,6 @@ async function handleModifierProfil(userId, données = {}) {
 
 /**
  * Modifie le mot de passe de l'utilisateur connecté.
- *
- * Valide la cohérence des entrées avant de déléguer à authService.
  *
  * @param {string} ancienMdp   - Mot de passe actuel (ré-authentification)
  * @param {string} nouveauMdp  - Nouveau mot de passe (≥ 6 caractères)
@@ -404,13 +398,13 @@ async function handleModifierMotDePasse(ancienMdp, nouveauMdp, confirmMdp) {
  * Protège une page en vérifiant que l'utilisateur connecté a le bon rôle.
  *
  * À appeler au DOMContentLoaded de chaque page protégée :
- *   await protegerPage("client");  // sur les pages client
- *   await protegerPage("livreur"); // sur les pages livreur
+ *   await protegerPage("client");
+ *   await protegerPage("livreur");
  *
  * Comportement :
  *   - Aucun utilisateur connecté → redirection vers choix-role.html
- *   - Mauvais rôle → redirection vers l'interface correspondant au rôle réel
- *   - Bon rôle → retourne les données de l'utilisateur à la vue
+ *   - Mauvais rôle → redirection vers l'interface du rôle réel
+ *   - Bon rôle → retourne les données de l'utilisateur
  *
  * @param {string} roleRequis - "client" | "livreur"
  * @returns {Promise<{
@@ -421,7 +415,6 @@ async function handleModifierMotDePasse(ancienMdp, nouveauMdp, confirmMdp) {
  *   emailVerifie: boolean,
  *   profil: Object
  * } | null>}
- *   null si la page a été redirigée (l'exécution doit s'arrêter côté vue)
  */
 async function protegerPage(roleRequis) {
   try {
@@ -433,26 +426,17 @@ async function protegerPage(roleRequis) {
       return null;
     }
 
-    // Cas 2 : Email non vérifié — renvoyer vers verification.html
-    if (!utilisateur.emailVerifie) {
-      sessionStorage.setItem(SESSION_KEYS.rolePending, utilisateur.role);
-      sessionStorage.setItem(SESSION_KEYS.uidPending,  utilisateur.uid);
-      _rediriger(ROUTES.verification);
-      return null;
-    }
-
-    // Cas 3 : Mauvais rôle — redirection vers la bonne interface
+    // Cas 2 : Mauvais rôle — redirection vers la bonne interface
     if (utilisateur.role !== roleRequis) {
       _rediriger(_routeParRole(utilisateur.role));
       return null;
     }
 
-    // Cas 4 : Tout est correct — on retourne l'utilisateur à la vue
+    // Cas 3 : Tout est correct — on retourne l'utilisateur à la vue
     return utilisateur;
 
   } catch (error) {
     console.error("[authController.protegerPage]", error.message);
-    // En cas d'erreur imprévue, on redirige vers choix-role par sécurité
     _rediriger(ROUTES.choixRole);
     return null;
   }
@@ -461,18 +445,9 @@ async function protegerPage(roleRequis) {
 // ─── handleMotDePasseOublie ───────────────────────────────────────────────────
 
 /**
- * Envoie un email de réinitialisation du mot de passe à l'adresse fournie.
+ * Envoie un email de réinitialisation du mot de passe.
  *
- * Flux :
- *  1. Valide que l'email est non vide et bien formé.
- *  2. Appelle Firebase sendPasswordResetEmail(auth, email).
- *  3. Retourne { success: true } si l'email est envoyé.
- *  4. Retourne { success: false, erreur: message } en cas d'échec.
- *
- * Cas particulier : si l'email n'existe pas dans Firebase (auth/user-not-found),
- * un message explicite est retourné.
- *
- * @param {string} email - Adresse email du compte à réinitialiser.
+ * @param {string} email - Adresse email du compte à réinitialiser
  * @returns {Promise<{ success: boolean, erreur?: string }>}
  */
 async function handleMotDePasseOublie(email) {
@@ -502,7 +477,6 @@ async function handleMotDePasseOublie(email) {
   } catch (error) {
     console.error("[authController.handleMotDePasseOublie]", error.message);
 
-    // Cas spécifique : email introuvable dans Firebase
     if (error.code === "auth/user-not-found") {
       return {
         success: false,

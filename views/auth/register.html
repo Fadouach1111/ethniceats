@@ -299,117 +299,172 @@
   </main>
 
   <script type="module">
-    import { handleRegister } from "../../controllers/authController.js";
+  import { handleRegister } from "../../controllers/authController.js";
+  import { getCurrentUser } from "../../services/authService.js";
 
-    // ── Rôle depuis localStorage ───────────────────────────────────────────────
-    const role = localStorage.getItem("roleChoisi") || "";
 
-    // ── Afficher le champ téléphone uniquement pour le livreur ────────────────
-    const champTel = document.getElementById("champ-telephone");
-    if (role === "livreur") {
-      champTel.classList.add("visible");
-    }
+  document.addEventListener("DOMContentLoaded", async () => {
+  const user = await getCurrentUser();
 
-    // ── Navigation ────────────────────────────────────────────────────────────
-    document.getElementById("btn-retour").addEventListener("click", () => {
-      window.location.href = "/";
-    });
+  if (user?.uid) {
+    window.location.href = user.role === "livreur" ? "/livreur/commandes" : "/accueil";
+    return;
+  }
+  });
 
-    // ── Helpers UI ────────────────────────────────────────────────────────────
-    function setError(id, message) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.textContent = message;
-        // Re-trigger animation on repeated error
-        el.style.animation = "none";
-        el.offsetHeight; // reflow
-        el.style.animation = "";
-      }
-    }
 
-    function clearError(id) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = "";
-    }
+  // ── Rôle depuis localStorage ───────────────────────────────────────────────
+  const role = localStorage.getItem("roleChoisi") || "";
 
-    function clearAllErrors() {
-      ["err-nom", "err-email", "err-mdp", "err-confirm", "err-tel", "err-global"]
-        .forEach(clearError);
-      document.getElementById("err-global").classList.add("hidden");
-    }
+  // ── Afficher le champ téléphone uniquement pour le livreur ────────────────
+  const champTel = document.getElementById("champ-telephone");
+  if (role === "livreur") {
+    champTel.classList.add("visible");
+  }
 
-    function showGlobalError(message) {
-      const el = document.getElementById("err-global");
+  // ── Navigation ────────────────────────────────────────────────────────────
+  document.getElementById("btn-retour").addEventListener("click", () => {
+    window.location.href = "/";
+  });
+
+  // ── Helpers UI ────────────────────────────────────────────────────────────
+  function setError(id, message) {
+    const el = document.getElementById(id);
+    if (el) {
       el.textContent = message;
-      el.classList.remove("hidden");
+      el.style.animation = "none";
+      el.offsetHeight;
+      el.style.animation = "";
+    }
+  }
+
+  function clearError(id) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = "";
+  }
+
+  function clearAllErrors() {
+    ["err-nom", "err-email", "err-mdp", "err-confirm", "err-tel", "err-global"]
+      .forEach(clearError);
+    document.getElementById("err-global").classList.add("hidden");
+  }
+
+  function showGlobalError(message) {
+    const el = document.getElementById("err-global");
+    el.textContent = message;
+    el.classList.remove("hidden");
+  }
+
+  function setLoading(isLoading) {
+    const btn = document.getElementById("btn-submit");
+    if (isLoading) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Création en cours…';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = "Créer un compte";
+    }
+  }
+
+  // ── Validation frontend ───────────────────────────────────────────────────
+  function validerFormulaire(nomComplet, email, motDePasse, confirmMdp, telephoneContact) {
+    let valide = true;
+    clearAllErrors();
+
+    if (!nomComplet || nomComplet.trim().length < 2) {
+      setError("err-nom", "Le nom complet doit contenir au moins 2 caractères.");
+      valide = false;
     }
 
-    function setLoading(isLoading) {
-      const btn = document.getElementById("btn-submit");
-      if (isLoading) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>Création en cours…';
-      } else {
-        btn.disabled = false;
-        btn.innerHTML = "Créer un compte";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      setError("err-email", "Veuillez saisir une adresse e-mail valide.");
+      valide = false;
+    }
+
+    if (!motDePasse || motDePasse.length < 6) {
+      setError("err-mdp", "Le mot de passe doit contenir au moins 6 caractères.");
+      valide = false;
+    }
+
+    if (!confirmMdp || motDePasse !== confirmMdp) {
+      setError("err-confirm", "Les mots de passe ne correspondent pas.");
+      valide = false;
+    }
+
+    if (role === "livreur") {
+      if (!telephoneContact || telephoneContact.trim().length < 6) {
+        setError("err-tel", "Le numéro de contact est obligatoire pour les livreurs.");
+        valide = false;
       }
     }
 
-    // ── Validation frontend ───────────────────────────────────────────────────
-    function validerFormulaire(nomComplet, email, motDePasse, confirmMdp, telephoneContact) {
-      let valide = true;
-      clearAllErrors();
+    return valide;
+  }
 
-      // Nom complet
-      if (!nomComplet || nomComplet.trim().length < 2) {
-        setError("err-nom", "Le nom complet doit contenir au moins 2 caractères.");
-        valide = false;
-      }
+  // ── Post-registration choice modal ─────────────────────────────────────────
+  function showPostRegistrationChoice(userRole) {
+    const modalHTML = `
+      <div id="post-reg-modal" class="fixed inset-0 z-50 bg-black/35 backdrop-filter backdrop-blur-sm flex items-center justify-center px-6">
+        <div class="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+          <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-primary-fixed-dim/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span class="material-symbols-outlined text-primary" style="font-size:32px">mail_outline</span>
+            </div>
+            <h2 class="font-headline text-2xl text-primary font-bold mb-2">Compte créé !</h2>
+            <p class="text-on-surface-variant text-sm">Bienvenue sur EthnicEats</p>
+          </div>
 
-      // Email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!email || !emailRegex.test(email)) {
-        setError("err-email", "Veuillez saisir une adresse e-mail valide.");
-        valide = false;
-      }
+          <div class="bg-surface-container rounded-2xl p-4 mb-8 border border-outline-variant/20">
+            <p class="text-sm font-medium text-on-surface mb-2">Vérifier votre email</p>
+            <p class="text-xs text-on-surface-variant leading-relaxed">Un lien de vérification a été envoyé à votre adresse email. Cliquez dessus pour activer votre compte.</p>
+          </div>
 
-      // Mot de passe
-      if (!motDePasse || motDePasse.length < 6) {
-        setError("err-mdp", "Le mot de passe doit contenir au moins 6 caractères.");
-        valide = false;
-      }
+          <div class="flex flex-col gap-3">
+            <a href="/verification" class="w-full bg-primary text-on-primary rounded-full py-4 font-semibold text-sm text-center hover:opacity-90 active:scale-95 transition-all">
+              Vérifier maintenant
+            </a>
+            <button onclick="skipVerificationAndContinue('${userRole}')" class="w-full py-4 rounded-full border-2 border-primary text-primary font-semibold text-sm hover:bg-primary/5 active:scale-95 transition-all">
+              Continuer plus tard
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
 
-      // Confirmation
-      if (!confirmMdp || motDePasse !== confirmMdp) {
-        setError("err-confirm", "Les mots de passe ne correspondent pas.");
-        valide = false;
-      }
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = modalHTML;
+    document.body.appendChild(tempDiv.firstElementChild);
+  }
 
-      // Téléphone (obligatoire pour livreur)
-      if (role === "livreur") {
-        if (!telephoneContact || telephoneContact.trim().length < 6) {
-          setError("err-tel", "Le numéro de contact est obligatoire pour les livreurs.");
-          valide = false;
-        }
-      }
+  window.skipVerificationAndContinue = (userRole) => {
+    const modal = document.getElementById('post-reg-modal');
+    if (modal) modal.remove();
+    
+    const redirectUrl = userRole === "livreur" ? "/livreur/commandes" : "/preferences";
+    window.location.href = redirectUrl;
+  };
 
-      return valide;
+  // ── Soumission ────────────────────────────────────────────────────────────
+  let isSubmitting = false;
+
+  document.getElementById("btn-submit").addEventListener("click", async () => {
+    if (isSubmitting) return;
+
+    const nomComplet        = document.getElementById("nomComplet").value.trim();
+    const email             = document.getElementById("email").value.trim();
+    const motDePasse        = document.getElementById("motDePasse").value;
+    const confirmMdp         = document.getElementById("confirmMdp").value;
+    const telephoneContact  = document.getElementById("telephoneContact").value.trim();
+
+    if (!validerFormulaire(nomComplet, email, motDePasse, confirmMdp, telephoneContact)) {
+      return;
     }
 
-    // ── Soumission ────────────────────────────────────────────────────────────
-    document.getElementById("btn-submit").addEventListener("click", async () => {
-      const nomComplet        = document.getElementById("nomComplet").value.trim();
-      const email             = document.getElementById("email").value.trim();
-      const motDePasse        = document.getElementById("motDePasse").value;
-      const confirmMdp        = document.getElementById("confirmMdp").value;
-      const telephoneContact  = document.getElementById("telephoneContact").value.trim();
+    isSubmitting = true;
+    setLoading(true);
 
-      if (!validerFormulaire(nomComplet, email, motDePasse, confirmMdp, telephoneContact)) {
-        return;
-      }
-
-      setLoading(true);
-
+    try {
       const résultat = await handleRegister({
         nomComplet,
         email,
@@ -419,22 +474,25 @@
         telephoneContact: role === "livreur" ? telephoneContact : null,
       });
 
-      setLoading(false);
-
       if (résultat.success) {
-        window.location.href = "/verification";
+        // Show post-registration choice modal
+        showPostRegistrationChoice(role);
       } else {
         showGlobalError(résultat.message || "Une erreur est survenue. Veuillez réessayer.");
       }
-    });
+    } finally {
+      setLoading(false);
+      isSubmitting = false;
+    }
+  });
 
-    // ── Clear errors on input ─────────────────────────────────────────────────
-    document.getElementById("nomComplet").addEventListener("input",        () => clearError("err-nom"));
-    document.getElementById("email").addEventListener("input",             () => clearError("err-email"));
-    document.getElementById("motDePasse").addEventListener("input",        () => clearError("err-mdp"));
-    document.getElementById("confirmMdp").addEventListener("input",        () => clearError("err-confirm"));
-    document.getElementById("telephoneContact").addEventListener("input",  () => clearError("err-tel"));
-  </script>
+  // ── Clear errors on input ─────────────────────────────────────────────────
+  document.getElementById("nomComplet").addEventListener("input",        () => clearError("err-nom"));
+  document.getElementById("email").addEventListener("input",             () => clearError("err-email"));
+  document.getElementById("motDePasse").addEventListener("input",        () => clearError("err-mdp"));
+  document.getElementById("confirmMdp").addEventListener("input",        () => clearError("err-confirm"));
+  document.getElementById("telephoneContact").addEventListener("input",  () => clearError("err-tel"));
+</script>
 
 </body>
 </html>

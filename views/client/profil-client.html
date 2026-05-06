@@ -152,11 +152,13 @@
 </div>
 
 <script type="module">
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 import { getProfil } from '../../controllers/clientController.js';
 import { handleLogout, protegerPage } from '../../controllers/authController.js';
 import { getCurrentUser } from '../../services/authService.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await setupEmailVerificationBanner();
   const utilisateur =  await protegerPage('client');
   if (!utilisateur) return;
   try {

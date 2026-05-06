@@ -251,6 +251,7 @@
 </main>
 
 <script type="module">
+import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 import { getRecetteById } from '../../controllers/recetteController.js';
 import { initialiserPanier } from '../../controllers/panierController.js';
 import { getCurrentUser } from '../../services/authService.js';
@@ -339,6 +340,7 @@ function _getPreferences() {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
+  await setupEmailVerificationBanner();
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
   if (!id) { showError(); return; }

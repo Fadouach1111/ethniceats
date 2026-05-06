@@ -118,7 +118,6 @@
 <script type="module">
 import { getFavoris, toggleFavori } from '../../controllers/clientController.js';
 import { getCurrentUser } from '../../services/authService.js';
-import { ajouterFavori } from '../../services/firestoreService.js';
 import { RECETTES } from '../../data/recettes.js';
 
 let clientId = null;
@@ -126,106 +125,113 @@ let estConnecte = false;
 let idASupprimer = null;
 let favData = [];
 
-function _lireIdsFavorisLocal() {
+// -----------------------------
+// LocalStorage (ONLY for guests)
+// -----------------------------
+function lireFavorisLocal() {
   try {
     const raw = localStorage.getItem('favoris');
     const ids = raw ? JSON.parse(raw) : [];
-    return Array.isArray(ids) ? ids.filter(Boolean) : [];
+    return Array.isArray(ids) ? ids : [];
   } catch {
     return [];
   }
 }
 
-function _ecrireIdsFavorisLocal(ids) {
-  try {
-    const uniques = Array.from(new Set((ids ?? []).filter(Boolean)));
-    localStorage.setItem('favoris', JSON.stringify(uniques));
-  } catch {}
+function ecrireFavorisLocal(ids) {
+  localStorage.setItem('favoris', JSON.stringify(ids));
 }
 
-function _hydraterFavoris(ids) {
+// -----------------------------
+// Hydration (IDs → recipes)
+// -----------------------------
+function hydraterFavoris(ids) {
   const map = new Map((RECETTES ?? []).map(r => [r.id, r]));
-  const uniques = Array.from(new Set((ids ?? []).filter(Boolean)));
-  return uniques.map(id => map.get(id) ?? ({
+  return ids.map(id => map.get(id) ?? ({
     id,
     titre: id,
     categorie: '',
     image: '',
-    descriptionCourte: '',
+    descriptionCourte: ''
   }));
 }
 
-async function _migrerFavorisLocalVersFirestore() {
-  if (!estConnecte || !clientId) return;
-
-  const localIds = _lireIdsFavorisLocal();
-  if (!localIds.length) return;
-
-  try {
-    const result = await getFavoris(clientId);
-    if (result?.success === false) return;
-    const firestoreIds = Array.isArray(result?.favorisIds) ? result.favorisIds : [];
-    const missing = localIds.filter(id => !firestoreIds.includes(id));
-
-    if (missing.length) {
-      await Promise.all(missing.map(id => ajouterFavori(clientId, id).catch(() => null)));
-    }
-  } catch {
-    // Si Firestore échoue, on garde le mode localStorage.
-  }
-}
-
+// -----------------------------
+// INIT
+// -----------------------------
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const user = await getCurrentUser();
+
+    console.log('[favoris] user:', user);
+
     if (user?.uid) {
       clientId = user.uid;
       estConnecte = true;
-      await _migrerFavorisLocalVersFirestore();
+
+      // 🔥 IMPORTANT: prevent cross-user pollution
+      localStorage.removeItem('favoris');
     }
+
     await charger();
-  } catch(e) { console.error('[favoris]', e); charger(); }
+
+  } catch (e) {
+    console.error('[favoris init]', e);
+    afficherVide();
+  }
 });
 
+// -----------------------------
+// LOAD DATA
+// -----------------------------
 async function charger() {
   try {
     document.getElementById('skeleton').classList.add('hidden');
 
-    // Si non connecté : on affiche directement les favoris locaux
-    if (!estConnecte || !clientId) {
-      const ids = _lireIdsFavorisLocal();
-      if (!ids.length) { afficherVide(); return; }
-      const favoris = _hydraterFavoris(ids);
+    // ✅ CONNECTED → FIRESTORE ONLY
+    if (estConnecte && clientId) {
+      const result = await getFavoris(clientId);
+
+      if (result?.success === false) {
+        throw new Error(result.message);
+      }
+
+      const ids = Array.isArray(result?.favorisIds)
+        ? result.favorisIds
+        : [];
+
+      if (!ids.length) {
+        afficherVide();
+        return;
+      }
+
+      const favoris = hydraterFavoris(ids);
       favData = favoris;
       afficherFavoris(favoris);
       return;
     }
 
-    // Connecté : Firestore est la source de vérité
-    const result = await getFavoris(clientId);
-    if (result?.success === false) throw new Error(result?.message || 'Chargement favoris Firestore impossible');
-    const ids = Array.isArray(result?.favorisIds)
-      ? result.favorisIds
-      : (Array.isArray(result?.favoris) ? result.favoris.map(r => r.id).filter(Boolean) : []);
+    // 📴 NOT CONNECTED → LOCAL ONLY
+    const ids = lireFavorisLocal();
 
-    _ecrireIdsFavorisLocal(ids); // miroir local pour éviter les incohérences
+    if (!ids.length) {
+      afficherVide();
+      return;
+    }
 
-    const favoris = _hydraterFavoris(ids);
+    const favoris = hydraterFavoris(ids);
     favData = favoris;
-    if (!favoris.length) { afficherVide(); return; }
     afficherFavoris(favoris);
-  } catch(e) {
-    document.getElementById('skeleton').classList.add('hidden');
-    try {
-      const ids = _lireIdsFavorisLocal();
-      if (!ids.length) { afficherVide(); return; }
-      const favoris = _hydraterFavoris(ids);
-      favData = favoris;
-      afficherFavoris(favoris);
-    } catch { afficherVide(); }
+
+  } catch (e) {
+    console.error('[favoris]', e);
+    afficherVide();
   }
 }
 
+// -----------------------------
+// UI STATES
+// -----------------------------
 function afficherVide() {
   document.getElementById('empty-state').classList.remove('hidden');
   document.getElementById('empty-state').classList.add('flex');
@@ -236,47 +242,47 @@ function afficherVide() {
 function afficherFavoris(favoris) {
   const container = document.getElementById('filled-state');
   container.innerHTML = '';
+
   document.getElementById('page-title').textContent = `Favoris (${favoris.length})`;
+
   favoris.forEach((r, i) => {
     const card = document.createElement('div');
     card.id = `fav-${r.id}`;
-    card.className = 'fav-card bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/10 overflow-hidden hover:shadow-md transition-shadow';
-    card.style.animationDelay = `${i * 50}ms`;
+    card.className = 'fav-card bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/10 overflow-hidden';
+
     card.innerHTML = `
       <div class="p-4 flex gap-4 relative">
-        <!-- Image -->
-        <div class="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-surface-container">
+        <div class="w-24 h-24 rounded-xl overflow-hidden bg-surface-container">
           ${r.image
-            ? `<img src="${r.image}" alt="${r.titre}" class="w-full h-full object-cover"/>`
-            : `<div class="w-full h-full flex items-center justify-center"><span class="material-symbols-outlined text-outline text-3xl opacity-40" style="font-variation-settings:'wght' 200">restaurant</span></div>`
+            ? `<img src="${r.image}" class="w-full h-full object-cover"/>`
+            : `<div class="w-full h-full flex items-center justify-center">
+                <span class="material-symbols-outlined text-outline opacity-40">restaurant</span>
+              </div>`
           }
         </div>
-        <!-- Infos -->
-        <div class="flex-1 min-w-0 pr-8 flex flex-col justify-center">
-          <h3 class="font-bold text-sm text-primary uppercase truncate">${r.titre || r.id}</h3>
-          ${r.categorie ? `<p class="text-[10px] text-outline uppercase font-bold mb-1">${r.categorie}</p>` : ''}
-          ${r.descriptionCourte ? `<p class="text-on-surface-variant text-xs leading-snug line-clamp-2">${r.descriptionCourte}</p>` : ''}
+
+        <div class="flex-1 pr-8 flex flex-col justify-center">
+          <h3 class="font-bold text-sm text-primary uppercase">${r.titre}</h3>
+          ${r.categorie ? `<p class="text-xs text-outline">${r.categorie}</p>` : ''}
         </div>
-        <!-- Bouton retirer -->
+
         <button onclick="demanderSuppression('${r.id}')"
-          class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center hover:bg-error/10 rounded-full transition-colors">
-          <span class="material-symbols-outlined text-primary fav-icon-filled text-[20px] hover:text-error">favorite</span>
+          class="absolute top-4 right-4">
+          ❤️
         </button>
       </div>
-      <!-- Bouton voir recette -->
-      <div class="border-t border-outline-variant/10 px-4 py-3 flex justify-end">
-        <a href="/recette-detail?id=${r.id}" class="text-primary font-semibold text-xs uppercase tracking-wider hover:opacity-70 transition-opacity flex items-center gap-1">
-          Voir la recette <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
-        </a>
-      </div>
     `;
+
     container.appendChild(card);
   });
+
   container.classList.remove('hidden');
   document.getElementById('empty-state').classList.add('hidden');
-  document.getElementById('empty-state').classList.remove('flex');
 }
 
+// -----------------------------
+// DELETE FLOW
+// -----------------------------
 window.demanderSuppression = (id) => {
   idASupprimer = id;
   document.getElementById('popup-suppression').classList.remove('hidden');
@@ -289,34 +295,31 @@ window.fermerPopup = () => {
 
 window.confirmerSuppression = async () => {
   if (!idASupprimer) return;
+
   try {
+    // ✅ CONNECTED → FIRESTORE
     if (estConnecte && clientId) {
-      const res = await toggleFavori(clientId, idASupprimer);
-      const ids = _lireIdsFavorisLocal();
-      if (res?.estFavori === false) {
-        _ecrireIdsFavorisLocal(ids.filter(id => id !== idASupprimer));
-      } else if (res?.estFavori === true) {
-        _ecrireIdsFavorisLocal([...ids, idASupprimer]);
-      } else {
-        _ecrireIdsFavorisLocal(ids.filter(id => id !== idASupprimer));
-      }
-    } else {
-      const ids = _lireIdsFavorisLocal().filter(id => id !== idASupprimer);
-      _ecrireIdsFavorisLocal(ids);
+      await toggleFavori(clientId, idASupprimer);
     }
-  } catch(e) {
-    const ids = _lireIdsFavorisLocal().filter(id => id !== idASupprimer);
-    _ecrireIdsFavorisLocal(ids);
+    // 📴 NOT CONNECTED → LOCAL
+    else {
+      const ids = lireFavorisLocal().filter(id => id !== idASupprimer);
+      ecrireFavorisLocal(ids);
+    }
+
+  } catch (e) {
+    console.error('[delete]', e);
   }
-  // Animation suppression
+
+  // UI update
   const card = document.getElementById(`fav-${idASupprimer}`);
-  if (card) { card.style.opacity = '0'; card.style.transform = 'scale(0.95)'; setTimeout(() => card.remove(), 250); }
+  if (card) card.remove();
+
   favData = favData.filter(r => r.id !== idASupprimer);
+
   fermerPopup();
-  setTimeout(() => {
-    if (!document.getElementById('filled-state').children.length) afficherVide();
-    else document.getElementById('page-title').textContent = `Favoris (${favData.length})`;
-  }, 300);
+
+  if (!favData.length) afficherVide();
 };
 </script>
 </body>

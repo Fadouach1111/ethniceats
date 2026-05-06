@@ -24,6 +24,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
+  deleteUser,
   sendEmailVerification,
   verifyBeforeUpdateEmail,
   updatePassword,
@@ -65,6 +66,7 @@ function _emailVerificationSettings() {
 async function _sendEmailVerification(user) {
   try {
     await sendEmailVerification(user, _emailVerificationSettings());
+    return;
   } catch (error) {
     const continueUrlErrors = [
       "auth/unauthorized-continue-uri",
@@ -72,16 +74,30 @@ async function _sendEmailVerification(user) {
       "auth/missing-continue-uri",
     ];
 
-    if (!continueUrlErrors.includes(error.code)) {
-      throw error;
+    // If continue-URL is the problem, retry without it
+    if (continueUrlErrors.includes(error.code)) {
+      console.warn(
+        "[authService] URL de retour non autorisee par Firebase. Envoi de l'email de verification sans continueUrl.",
+        error.code
+      );
+      try {
+        await sendEmailVerification(user);
+        return;
+      } catch (retryErr) {
+        console.error("[authService._sendEmailVerification] retry failed:", retryErr.code, retryErr.message);
+        try { await deleteUser(user); } catch (cleanupErr) {
+          console.error("[authService._sendEmailVerification] cleanup error:", cleanupErr.code, cleanupErr?.message);
+        }
+        throw retryErr;
+      }
+    }
+    try {
+      await deleteUser(user);
+    } catch (cleanupErr) {
+      console.error("[authService._sendEmailVerification] cleanup error:", cleanupErr.code, cleanupErr?.message);
     }
 
-    console.warn(
-      "[authService] URL de retour non autorisee par Firebase. " +
-      "Envoi de l'email de verification sans continueUrl.",
-      error.code
-    );
-    await sendEmailVerification(user);
+    throw error;
   }
 }
 
@@ -127,8 +143,9 @@ function _rediriger(url) {
  * @returns {Promise<{ success: boolean, uid: string, message: string }>}
  */
 async function register(nomComplet, email, motDePasse, role, numeroContact = null) {
+  let user = null;
+
   try {
-    // ── Validation locale avant tout appel réseau ──────────────────────────
     if (!nomComplet || nomComplet.trim().length < 2) {
       throw new Error("Le nom complet doit contenir au moins 2 caractères.");
     }
@@ -139,20 +156,14 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
       if (!numeroContact || numeroContact.trim() === "") {
         throw new Error("Le numéro de téléphone de contact est obligatoire pour les livreurs.");
       }
-      // Réutilise la regex de Utilisateur.validerTelephone()
       if (!/^\+?[\d\s\-()]{8,15}$/.test(numeroContact.trim())) {
         throw new Error(`Numéro de contact invalide : "${numeroContact}".`);
       }
     }
 
-    // ── Création du compte Firebase Auth ──────────────────────────────────
     const userCredential = await createUserWithEmailAndPassword(auth, email, motDePasse);
-    const user = userCredential.user;
+    user = userCredential.user;
 
-    // ── Envoi de l'email de vérification (OTP) ────────────────────────────
-    await _sendEmailVerification(user);
-
-    // ── Construction du profil Firestore ──────────────────────────────────
     const profil = {
       uid:        user.uid,
       nomComplet: nomComplet.trim(),
@@ -162,7 +173,6 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
       creeLe:     serverTimestamp(),
     };
 
-    // Champ supplémentaire pour les livreurs
     if (role === "livreur") {
       profil.telephoneContact = numeroContact.trim();
       profil.gainsTotaux      = 0;
@@ -170,37 +180,43 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
       profil.statutActuel     = "disponible";
     }
 
-    // Champs par défaut pour les clients
     if (role === "client") {
-      profil.budgetMax       = 0;
-      profil.sourcePreferee  = "";
-      profil.priorite        = "";
-      profil.favoris         = [];
+      profil.budgetMax          = 0;
+      profil.sourcePreferee     = "";
+      profil.priorite           = "";
+      profil.favoris            = [];
       profil.preferencesDefinies = false;
     }
 
-    // Persistance Firestore (uid comme clé de document)
-    await setDoc(doc(db, USERS_COLLECTION, user.uid), profil);
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, user.uid), profil);
+    } catch (firestoreError) {
+      try {
+        await deleteUser(user);
+      } catch (cleanupError) {
+        console.error("[authService.register] cleanup error:", cleanupError.code, cleanupError.message);
+      }
+      throw firestoreError;
+    }
 
-    // ── Redirection vers l'écran de vérification ──────────────────────────
-    // On stocke temporairement le rôle pour que la page de vérification
-    // sache où rediriger l'utilisateur après validation.
+    await _sendEmailVerification(user);
+
     sessionStorage.setItem("ee_role_pending", role);
-    sessionStorage.setItem("ee_uid_pending",  user.uid);
+    sessionStorage.setItem("ee_uid_pending", user.uid);
     sessionStorage.setItem("ee_email_pending", user.email || email.trim().toLowerCase());
 
-    _rediriger(REDIRECT.verification);
-
-    return { success: true, uid: user.uid, message: "Compte créé. Vérifiez votre email." };
+    return {
+      success: true,
+      uid: user.uid,
+      message: "Compte créé. Vous pourrez vérifier votre email plus tard.",
+    };    
 
   } catch (error) {
-    // Traduction des codes d'erreur Firebase les plus courants
     const message = _traduireErreurAuth(error);
     console.error("[authService.register]", error.code, error.message);
     return { success: false, uid: null, message };
   }
 }
-
 // ─── login ───────────────────────────────────────────────────────────────────
 
 /**
@@ -216,25 +232,12 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
  * @param {string} motDePasse
  * @returns {Promise<{ success: boolean, role: string|null, message: string }>}
  */
+
 async function login(email, motDePasse) {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, motDePasse);
     const user = userCredential.user;
 
-    // ── Vérification email obligatoire ────────────────────────────────────
-    if (!user.emailVerified) {
-      // Renvoyer l'email de vérification si nécessaire
-      await _sendEmailVerification(user);
-      await signOut(auth); // on déconnecte pour éviter un état partiel
-      return {
-        success: false,
-        role: null,
-        message:
-          "Votre email n'est pas encore vérifié. Un nouveau lien de vérification vient d'être envoyé.",
-      };
-    }
-
-    // ── Récupération du profil Firestore ──────────────────────────────────
     const profil = await _getProfilFirestore(user.uid);
     if (!profil) {
       await signOut(auth);
@@ -247,7 +250,6 @@ async function login(email, motDePasse) {
 
     const role = profil.role;
 
-    // ── Vérification que le rôle choisi correspond au rôle du compte ──────
     const roleChoisi = localStorage.getItem("roleChoisi");
     if (roleChoisi && roleChoisi !== role) {
       await signOut(auth);
@@ -260,24 +262,20 @@ async function login(email, motDePasse) {
       };
     }
 
-    // ── Mise à jour du champ emailVerifie dans Firestore si nécessaire ────
-    if (!profil.emailVerifie) {
+    if (user.emailVerified && !profil.emailVerifie) {
       await updateDoc(doc(db, USERS_COLLECTION, user.uid), { emailVerifie: true });
     }
 
-    // ── Redirection selon le rôle ─────────────────────────────────────────
     const destination = REDIRECT[role] ?? REDIRECT.choixRole;
     _rediriger(destination);
 
     return { success: true, role, message: `Connexion réussie en tant que ${role}.` };
-
   } catch (error) {
     const message = _traduireErreurAuth(error);
     console.error("[authService.login]", error.code, error.message);
     return { success: false, role: null, message };
   }
 }
-
 // ─── logout ──────────────────────────────────────────────────────────────────
 
 /**
