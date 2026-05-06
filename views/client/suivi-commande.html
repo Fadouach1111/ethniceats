@@ -181,7 +181,7 @@ const LIBELLES = {
 let stoppers = {}; // commandeId → stopperEcoute()
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await setupEmailVerificationBanner();
+  await setupEmailVerificationBanner('client');
   await charger();
 });
 

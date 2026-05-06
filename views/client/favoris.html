@@ -163,7 +163,7 @@ function hydraterFavoris(ids) {
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     
-    await setupEmailVerificationBanner();
+    await setupEmailVerificationBanner('client');
     const user = await getCurrentUser();
 
     console.log('[favoris] user:', user);

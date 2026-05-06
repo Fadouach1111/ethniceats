@@ -194,7 +194,7 @@ let stopperEcoute = null;
 let commandeId = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await setupEmailVerificationBanner();
+  await setupEmailVerificationBanner('client');
   const params = new URLSearchParams(window.location.search);
   commandeId = params.get('id');
   if (!commandeId) { showError(); return; }

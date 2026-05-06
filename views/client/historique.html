@@ -114,7 +114,7 @@ let clientId = 'client_anonymous';
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    await setupEmailVerificationBanner();
+    await setupEmailVerificationBanner('client');
     const user = await getCurrentUser();
     if (user?.uid) clientId = user.uid;
   } catch(e) {}

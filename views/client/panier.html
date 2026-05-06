@@ -214,6 +214,7 @@ import {
   supprimerIngredient,
   modifierQuantite,
   calculerSousTotal,
+  calculerTotal,
 } from '../../controllers/panierController.js';
 
 import { getIconeSVG } from '../../services/ingredientIcons.js';
@@ -223,7 +224,7 @@ let ingredientASupprimer = null;
 const preferences = _getPreferences();
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await setupEmailVerificationBanner();
+  await setupEmailVerificationBanner('client');
   await chargerPanier();
 });
 
@@ -342,9 +343,24 @@ function _peutDiminuer(ing) {
 
 async function updateTotal() {
   if (!panierData) return;
-  let total = 0;
-  (panierData.ingredients || []).forEach(ing => { total += _prixIngredient(ing); });
-  document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? total} MAD`;
+
+  try {
+    const sousTotal = await calculerSousTotal(panierData, preferences);
+    const total = await calculerTotal(sousTotal, panierData.fraisLivraison ?? 0);
+
+    // Persist recalculated totals on the panier object
+    panierData.sousTotal = sousTotal;
+    panierData.total = total;
+    try { await sauvegarderPanier(panierData); } catch (e) { console.warn('[panier] failed saving totals', e); }
+
+    document.getElementById('prix-total').textContent = `${total} MAD`;
+  } catch (e) {
+    console.error('[panier] updateTotal error', e);
+    // Fallback: compute a best-effort total from ingredient display prices
+    let fallback = 0;
+    (panierData.ingredients || []).forEach(ing => { fallback += _prixIngredient(ing); });
+    document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? fallback} MAD`;
+  }
 }
 
 window.demanderSuppression = function(nom) {

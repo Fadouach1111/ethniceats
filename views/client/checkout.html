@@ -341,7 +341,7 @@ let preferences = _getPrefs();
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    await setupEmailVerificationBanner();
+    await setupEmailVerificationBanner('client');
     panierCheckout = await getPanierPourCheckout();
 
     let clientId = null;

@@ -168,7 +168,7 @@ let clientId = 'client_anonymous';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const utilisateur = await protegerPage('client');
-  await setupEmailVerificationBanner();
+  await setupEmailVerificationBanner('client');
   if (!utilisateur) return;
   if (utilisateur?.uid) clientId = utilisateur.uid;
   document.getElementById('field-nom').value = utilisateur.nomComplet || utilisateur.nom || utilisateur.displayName || '';

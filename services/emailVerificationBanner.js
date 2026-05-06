@@ -13,9 +13,12 @@ import { getCurrentUser } from './authService.js';
  * Injects email verification banner into the page if user is logged in but not verified.
  * Call this at DOMContentLoaded on all protected client pages.
  */
-export async function setupEmailVerificationBanner() {
+export async function setupEmailVerificationBanner(roleRequis = null) {
   try {
     const user = await getCurrentUser();
+
+    // If a required role is provided, only proceed when it matches the current user
+    if (roleRequis && user?.role !== roleRequis) return;
 
     // Only show banner if user is logged in AND email NOT verified
     if (user?.uid && user.emailVerifie === false) {

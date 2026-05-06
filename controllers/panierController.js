@@ -281,6 +281,22 @@ export async function getPanier() {
       creeLe: new Date().toISOString(),
     };
 
+    // Compute prixTotal for each ingredient (migration) and totals
+    try {
+      panierMigré.ingredients = panierMigré.ingredients.map(i => {
+        const prixTot = _prixTotalIngredient(i);
+        return { ...i, prixTotal: Math.round(prixTot * 100) / 100 };
+      });
+
+      const sous = panierMigré.ingredients.reduce((acc, it) => acc + (it.prixTotal ?? 0), 0);
+      panierMigré.sousTotal = Math.round(sous * 100) / 100;
+      panierMigré.fraisLivraison = _fraisLivraison(panierMigré.preferences.sourcePreferee);
+      panierMigré.total = Math.round((panierMigré.sousTotal + panierMigré.fraisLivraison) * 100) / 100;
+
+    } catch (e) {
+      console.warn('[panierController] migration compute totals failed', e);
+    }
+
     // Persiste sous le nouveau format, et conserve l'ancien pour compat.
     await sauvegarderPanier(panierMigré);
     return panierMigré;

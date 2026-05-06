@@ -174,7 +174,7 @@ import { handleLogout, protegerPage } from '../../controllers/authController.js'
 import { getCurrentUser } from '../../services/authService.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await setupEmailVerificationBanner();
+  await setupEmailVerificationBanner('client');
   const utilisateur =  await protegerPage('client');
   if (!utilisateur) return;
   try {
