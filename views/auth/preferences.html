@@ -290,7 +290,7 @@
   <!-- Controller logic -->
   <script type="module">
     import { getCurrentUser }        from "../../controllers/authController.js";
-    import { sauvegarderPreferences } from "../../controllers/clientController.js";
+    import { getPreferences, sauvegarderPreferences } from "../../controllers/clientController.js";
 
     // ── Budgets max en MAD par niveau ─────────────────────────────────────────
     const BUDGET_MAX = {
@@ -313,6 +313,42 @@
       return activeBtn ? activeBtn.dataset.value : null;
     }
 
+    function activerOption(group, value) {
+      if (!value) return;
+
+      const container = document.querySelector(`[data-group="${group}"]`);
+      if (!container) return;
+
+      const button = container.querySelector(`button[data-value="${value}"]`);
+      if (button) {
+        selectOption(button);
+      }
+    }
+
+    function budgetMaxToLabel(budgetMax) {
+      if (budgetMax === 100) return "faible";
+      if (budgetMax === 300) return "moyen";
+      if (budgetMax === 1000) return "eleve";
+      return null;
+    }
+
+    async function chargerPreferencesExistantes() {
+      try {
+        const utilisateur = await getCurrentUser();
+        if (!utilisateur?.uid) return;
+
+        const resultat = await getPreferences(utilisateur.uid);
+        if (!resultat.success || !resultat.preferences) return;
+
+        const { budgetMax, sourcePreferee, priorite } = resultat.preferences;
+        activerOption("source", sourcePreferee);
+        activerOption("budget", budgetMaxToLabel(budgetMax));
+        activerOption("priorite", priorite);
+      } catch (err) {
+        console.error("[preferences.html] chargerPreferencesExistantes", err);
+      }
+    }
+
     function activerSpinner() {
       btnContinuer.disabled = true;
       btnContinuer.innerHTML = `<span class="spinner"></span>Enregistrement…`;
@@ -332,6 +368,8 @@
       errorGlobal.textContent = "";
       errorGlobal.classList.add("hidden");
     }
+
+    document.addEventListener("DOMContentLoaded", chargerPreferencesExistantes);
 
     // ── Soumission ────────────────────────────────────────────────────────────
     btnContinuer.addEventListener("click", async () => {
