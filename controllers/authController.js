@@ -283,7 +283,7 @@ async function handleVerificationOTP() {
       sessionStorage.removeItem("ee_email_pending");
 
       // Redirect to login
-      _rediriger(ROUTES.connexion);
+    _rediriger(role === "livreur" ? ROUTES.livreurCommandes : ROUTES.clientAccueil);
 
       return { ...résultat, role };
     }

@@ -115,22 +115,13 @@
 
 <body class="bg-surface text-on-surface min-h-screen antialiased flex flex-col">
 
-  <!-- TopAppBar -->
-  <header class="flex items-center px-6 py-4 w-full backdrop-blur-md sticky top-0 z-50 bg-[#fcf9f8] dark:bg-stone-950/90 docked full-width relative">
-    <button
-      id="btn-retour"
-      aria-label="Retour"
-      class="scale-95 active:opacity-80 transition-all text-[#012d1d] dark:text-emerald-50 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-full p-2"
-    >
-      <span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
-    </button>
-  </header>
+
 
   <!-- Main Content -->
-  <main class="flex-grow flex flex-col px-6 pt-8 pb-12 max-w-3xl mx-auto w-full lg:pt-0 lg:justify-center">
+  <main class="flex-grow flex flex-col px-6 pt-4 pb-12 max-w-3xl mx-auto w-full lg:justify-center">
 
     <!-- Heading -->
-    <div class="flex flex-col gap-3 mb-10">
+    <div class="flex flex-col gap-3 mb-10 text-center md:text-left pt-2">
       <h2 class="font-body text-3xl md:text-4xl lg:text-5xl font-bold text-primary">
         Choisissez vos préférences
       </h2>
@@ -149,15 +140,13 @@
         </h3>
         <div class="flex flex-wrap gap-3" data-group="source">
           <button
-            aria-pressed="true"
+            aria-pressed="false"
             data-value="souk"
-            class="flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border-2 border-[#1B4332] text-[#1B4332] font-label text-sm md:text-base font-medium transition-all duration-300"
+            class="flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant text-on-surface font-label text-sm md:text-base font-medium hover:bg-surface-container-low transition-all duration-300"
             onclick="selectOption(this)"
           >
             <span>Souk / marchés locaux</span>
-            <div class="w-4 h-4 rounded-full bg-[#1B4332] text-white flex items-center justify-center">
-              <span class="material-symbols-outlined" style="font-size: 12px;">check</span>
-            </div>
+            <div class="w-4 h-4 rounded-full border border-outline-variant"></div>
           </button>
           <button
             aria-pressed="false"
@@ -196,15 +185,13 @@
             <div class="w-4 h-4 rounded-full border border-outline-variant"></div>
           </button>
           <button
-            aria-pressed="true"
+            aria-pressed="false"
             data-value="moyen"
-            class="flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border-2 border-[#1B4332] text-[#1B4332] font-label text-sm md:text-base font-medium transition-all duration-300"
+            class="flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant text-on-surface font-label text-sm md:text-base font-medium hover:bg-surface-container-low transition-all duration-300"
             onclick="selectOption(this)"
           >
             <span>Moyen</span>
-            <div class="w-4 h-4 rounded-full bg-[#1B4332] text-white flex items-center justify-center">
-              <span class="material-symbols-outlined" style="font-size: 12px;">check</span>
-            </div>
+            <div class="w-4 h-4 rounded-full border border-outline-variant"></div>
           </button>
           <button
             aria-pressed="false"
@@ -243,15 +230,13 @@
             <div class="w-4 h-4 rounded-full border border-outline-variant"></div>
           </button>
           <button
-            aria-pressed="true"
+            aria-pressed="false"
             data-value="plus_frais"
-            class="flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border-2 border-[#1B4332] text-[#1B4332] font-label text-sm md:text-base font-medium transition-all duration-300"
+            class="flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant text-on-surface font-label text-sm md:text-base font-medium hover:bg-surface-container-low transition-all duration-300"
             onclick="selectOption(this)"
           >
             <span>Le plus frais</span>
-            <div class="w-4 h-4 rounded-full bg-[#1B4332] text-white flex items-center justify-center">
-              <span class="material-symbols-outlined" style="font-size: 12px;">check</span>
-            </div>
+            <div class="w-4 h-4 rounded-full border border-outline-variant"></div>
           </button>
         </div>
       </section>
@@ -260,6 +245,7 @@
 
     <!-- Error message -->
     <p id="error-global" class="hidden mt-6 text-sm font-medium text-error font-label text-center"></p>
+    <p id="ok-global" class="hidden mt-6 text-sm font-medium text-green-700 font-label text-center flex items-center justify-center gap-1"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:16px;">check_circle</span>Préférences enregistrées !</p>
 
     <!-- Bottom Action Area -->
     <div class="mt-12 flex flex-col items-center gap-3 w-full">
@@ -270,9 +256,7 @@
       >
         Continuer
       </button>
-      <p class="text-center font-label text-sm md:text-base text-on-surface-variant max-w-[400px]">
-        Vous pourrez modifier ces préférences plus tard dans votre profil
-      </p>
+
     </div>
 
   </main>
@@ -316,14 +300,11 @@
     };
 
     // ── Éléments DOM ──────────────────────────────────────────────────────────
-    const btnRetour    = document.getElementById("btn-retour");
     const btnContinuer = document.getElementById("btn-continuer");
     const errorGlobal  = document.getElementById("error-global");
+    const okGlobal     = document.getElementById("ok-global");
 
-    // ── Navigation retour ─────────────────────────────────────────────────────
-    btnRetour.addEventListener("click", () => {
-      window.location.href = "verification.html";
-    });
+
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     function getValeurSelectionnee(group) {
@@ -360,7 +341,6 @@
       let utilisateur;
       try {
         utilisateur = await getCurrentUser();
-        window.location.href = "login.html";
       } catch (err) {
         afficherErreur("Impossible de vérifier votre session. Veuillez vous reconnecter.");
         console.error("[preferences.html] getCurrentUser", err);
@@ -396,7 +376,8 @@
         });
 
         if (résultat.success) {
-          window.location.href = "profil-client.html";
+          okGlobal.classList.remove('hidden');
+          setTimeout(() => { window.location.href = '/accueil'; }, 1500);
         } else {
           afficherErreur(résultat.message || "Une erreur est survenue. Veuillez réessayer.");
           désactiverSpinner();
