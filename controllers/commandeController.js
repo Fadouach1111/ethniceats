@@ -32,6 +32,8 @@
 import {
   sauvegarderCommande,
   getCommandesClient,
+  getUtilisateur,
+  sauvegarderUtilisateur,
   mettreAJourStatutCommande,
 } from "../services/firestoreService.js";
 
@@ -232,6 +234,23 @@ async function creerCommande(clientId, panier, adresse, modePaiement, preference
 
     // ── Publication pour les livreurs ──────────────────────────────────────
     await publierCommandeDisponible(commandeId);
+
+    // ── Déclencher email de feedback via Firebase Extension ────────────────
+    // (une seule fois par compte via flag feedbackEmailSent)
+    try {
+      const utilisateur = await getUtilisateur(clientId);
+      if (utilisateur && !utilisateur.feedbackEmailSent) {
+        // Déclencher l'email en écrivant dans la collection dédiée
+        // Firebase Extension "Trigger Email" écoute et envoie automatiquement
+        await _declencherEmailFeedback(clientId, utilisateur);
+        
+        // Marquer que l'email a été déclenché (ne pas renvoyer)
+        await sauvegarderUtilisateur(clientId, { feedbackEmailSent: true });
+      }
+    } catch (erreurEmail) {
+      // Log l'erreur mais ne pas bloquer la création de commande
+      console.warn("[crierCommande] Erreur lors du déclenchement du feedback email :", erreurEmail);
+    }
 
     return {
       success: true,
@@ -591,6 +610,80 @@ async function archiverCommande(commandeId) {
       success: false,
       message: "Impossible d'archiver la commande. Veuillez réessayer.",
     };
+  }
+}
+
+// ─── Envoi Email de Feedback (Firebase Extension) ───────────────────────────
+
+/**
+ * Déclenche l'envoi d'un email de feedback via Firebase Extension.
+ * 
+ * La Firebase Extension "Trigger Email" écoute la collection "feedbackEmails"
+ * et envoie automatiquement les emails configurés en Firestore.
+ * 
+ * @param {string} userId       - UID du client
+ * @param {Object} utilisateur  - Objet utilisateur avec email et nomComplet
+ * @returns {Promise<void>}
+ * @private
+ */
+async function _declencherEmailFeedback(userId, utilisateur) {
+  try {
+    if (!utilisateur?.email) return;
+
+    const { db } = await import("../services/firebase.js");
+    const { doc, setDoc, serverTimestamp } = await import(
+      "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js"
+    );
+
+    // Écrire dans la collection que Firebase Extension surveille
+    // Structure : feedbackEmails/{userId}
+    const feedbackDocRef = doc(db, "feedbackEmails", userId);
+    
+    const firstName = utilisateur.nomComplet?.split(" ")[0] || "Client";
+
+    await setDoc(feedbackDocRef, {
+      to: utilisateur.email,
+      message: {
+        subject: "Merci d'avoir utilisé EthnicEats ! 🙏",
+        text: `Bonjour ${firstName},\n\nNous vous remercions sincèrement d'avoir choisi EthnicEats.\n\nVos retours nous aident à améliorer nos services. Cliquez ici pour répondre à un court sondage :\nhttps://docs.google.com/forms/d/e/1FAIpQLScVow3L11nzvFbrPRvuTmYUIQDbl7PsXavRTqSLPf72HAxgJQ/viewform?usp=dialog\n\nMerci !`,
+        html: `
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <div style="max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 10px;">
+                <div style="background: linear-gradient(135deg, #012d1d 0%, #1b4332 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                  <h1 style="margin: 0; font-size: 28px;">🎉 Merci pour votre commande !</h1>
+                </div>
+                <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px;">
+                  <p>Bonjour <strong>${firstName}</strong>,</p>
+                  <p>Nous vous remercions sincèrement d'avoir choisi <strong>EthnicEats</strong> pour votre commande.</p>
+                  <p>Pour nous aider à continuer à améliorer notre plateforme, nous aimerions connaître votre avis. Vos retours nous sont extrêmement utiles ! 💬</p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="https://docs.google.com/forms/d/e/1FAIpQLScVow3L11nzvFbrPRvuTmYUIQDbl7PsXavRTqSLPf72HAxgJQ/viewform?usp=dialog" style="background: #012d1d; color: white; padding: 14px 32px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
+                      Répondre au formulaire (2 min)
+                    </a>
+                  </div>
+                  <p>Vos réponses nous aideront à :</p>
+                  <ul>
+                    <li>✅ Améliorer la qualité de nos ingrédients</li>
+                    <li>✅ Optimiser nos délais de livraison</li>
+                    <li>✅ Personnaliser votre expérience</li>
+                    <li>✅ Développer de nouvelles fonctionnalités</li>
+                  </ul>
+                  <p>Merci encore pour votre confiance ! 🚀</p>
+                  <p><strong>L'équipe EthnicEats</strong><br><em>Des ingrédients authentiques à votre porte.</em></p>
+                </div>
+              </div>
+            </body>
+          </html>
+        `
+      },
+      createdAt: serverTimestamp(),
+      userId: userId
+    }, { merge: false });
+
+  } catch (error) {
+    console.error("[_declencherEmailFeedback]", error);
+    throw error;
   }
 }
 

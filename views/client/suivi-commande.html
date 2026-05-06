@@ -125,11 +125,11 @@
 </main>
 
 <!-- ===== POPUP LIVREUR ARRIVÉ ===== -->
-<div id="popup-arrive" class="hidden fixed inset-0 z-50 overlay flex items-center justify-center px-6">
-  <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+<div id="popup-arrive" class="hidden fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center px-6">
+  <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in">
     <div class="h-32 bg-primary flex items-center justify-center relative overflow-hidden">
       <div class="relative z-10 flex items-center justify-center">
-        <div class="relative w-16 h-16 ring-pulse">
+        <div class="relative w-16 h-16">
           <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl">
             <span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings:'FILL' 1">directions_bike</span>
           </div>
@@ -167,6 +167,7 @@
 import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 import { getCommandesEnCours, ecouterStatutCommande } from '../../controllers/commandeController.js';
 import { getCurrentUser } from '../../services/authService.js';
+import { ecouterInfosLivreur, stopperEcoute as stopRT } from '../../services/realtimeService.js';
 
 const LIBELLES = {
   commande_passee: 'Commande passée',
@@ -276,6 +277,20 @@ function _htmlCarte(c) {
       </div>
     </div>
 
+    <!-- Infos Livreur -->
+    <div id="livreur-info-${c.id}" class="hidden bg-surface-container-low rounded-xl p-4 border border-outline-variant/10 space-y-2">
+      <p class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant mb-2">Votre livreur</p>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <span class="material-symbols-outlined text-primary text-xl">person</span>
+        </div>
+        <div class="flex-1">
+          <p id="livreur-nom-${c.id}" class="font-semibold text-on-surface text-sm">—</p>
+          <a id="livreur-tel-${c.id}" href="#" class="text-primary text-xs font-medium underline underline-offset-2">—</a>
+        </div>
+      </div>
+    </div>
+
     <!-- Bouton -->
     <a href="/suivi-detail?id=${c.id}"
       class="w-full bg-primary text-on-primary rounded-full py-3.5 font-semibold text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-md">
@@ -288,6 +303,7 @@ function _htmlCarte(c) {
 // Écoute temps réel — met à jour le badge et le label statut
 async function demarrerEcoute(commandeId) {
   try {
+    // Écoute du statut
     const res = await ecouterStatutCommande(
       commandeId,
       (statut, err) => {
@@ -303,21 +319,25 @@ async function demarrerEcoute(commandeId) {
       },
       {
         onConfirmee: (id) => {
-          // Mettre à jour le label pour indiquer qu'un livreur est assigné
-          const label = document.getElementById(`statut-label-${id}`);
-          if (label) {
-            label.textContent = 'Livreur assigné — En route !';
-            label.style.color = '#012d1d';
+          // Afficher la section livreur
+          const livreurSection = document.getElementById(`livreur-info-${id}`);
+          if (livreurSection) {
+            livreurSection.classList.remove('hidden');
           }
         },
         onArrive: (id) => {
-          // Mettre à jour le label pour indiquer que le livreur est arrivé
+          // Mettre à jour le label
           const label = document.getElementById(`statut-label-${id}`);
           if (label) {
             label.textContent = '🛵 Livreur arrivé !';
             label.style.color = '#775a19';
           }
-          document.getElementById('popup-arrive').classList.remove('hidden');
+          // Afficher la pop-up
+          const popup = document.getElementById('popup-arrive');
+          if (popup && popup.classList.contains('hidden')) {
+            popup.classList.remove('hidden');
+            popup.style.display = 'flex';
+          }
         },
         onLivree: (id) => {
           // Supprimer la carte
@@ -334,11 +354,37 @@ async function demarrerEcoute(commandeId) {
       }
     );
     if (res.success) stoppers[commandeId] = res.stopperEcoute;
+
+    // Écoute des infos livreur
+    try {
+      const refLivreur = ecouterInfosLivreur(commandeId, (infos, err) => {
+        if (err || !infos) return;
+        const nomEl = document.getElementById(`livreur-nom-${commandeId}`);
+        const telEl = document.getElementById(`livreur-tel-${commandeId}`);
+        if (nomEl) nomEl.textContent = infos.nom || '—';
+        if (telEl) {
+          if (infos.telephone) {
+            const telHref = infos.telephone.replace(/\s+/g, '');
+            telEl.href = `tel:${telHref}`;
+            telEl.textContent = infos.telephone;
+          } else {
+            telEl.href = '#';
+            telEl.textContent = '—';
+          }
+        }
+      });
+      if (refLivreur) stoppers[`livreur-${commandeId}`] = () => stopRT(refLivreur);
+    } catch(e) { console.error('[suivi] écoute livreur', e); }
+
   } catch(e) { console.error('[suivi] écoute', e); }
 }
 
 window.fermerPopupArrive = function() {
-  document.getElementById('popup-arrive').classList.add('hidden');
+  const popup = document.getElementById('popup-arrive');
+  if (popup) {
+    popup.classList.add('hidden');
+    popup.style.display = 'none';
+  }
 };
 
 // Nettoyage
