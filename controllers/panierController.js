@@ -97,6 +97,54 @@ function _prixTotalIngredient(ing) {
   return Math.round(quantite * prix * 100) / 100;
 }
 
+/**
+ * Recalcule les prix d'un panier à partir des quantités actuelles.
+ * Met à jour les prix unitaires, les prixTotal et les totaux globaux.
+ *
+ * @param {Object} panier
+ * @param {Object} [preferencesOverride]
+ * @returns {Promise<Object>} panier mis à jour
+ */
+export async function recalculerPanierPrix(panier, preferencesOverride = null) {
+  try {
+    if (!panier || typeof panier !== 'object') {
+      throw new Error('recalculerPanierPrix : panier invalide.');
+    }
+
+    const preferences = preferencesOverride ?? panier.preferences ?? { sourcePreferee: 'mix', priorite: '', budgetMax: 0 };
+    const sourcePreferee = preferences.sourcePreferee ?? 'mix';
+
+    panier.ingredients = (panier.ingredients ?? []).map((ing) => {
+      const prixUnitaire = _prixUnitaire(ing, sourcePreferee);
+      const prixTotal = _prixTotalIngredient({ ...ing, prixUnitaire });
+
+      return {
+        ...ing,
+        prixUnitaire,
+        prixTotal: Math.round(prixTotal * 100) / 100,
+      };
+    });
+
+    const sousTotal = panier.ingredients.reduce((acc, ing) => acc + (Number(ing.prixTotal) || 0), 0);
+    const fraisLivraison = _fraisLivraison(sourcePreferee);
+    const total = Math.round((Math.round(sousTotal * 100) / 100 + fraisLivraison) * 100) / 100;
+
+    panier.preferences = {
+      sourcePreferee,
+      priorite: preferences.priorite ?? '',
+      budgetMax: preferences.budgetMax ?? 0,
+    };
+    panier.sousTotal = Math.round(sousTotal * 100) / 100;
+    panier.fraisLivraison = fraisLivraison;
+    panier.total = total;
+
+    return panier;
+  } catch (error) {
+    console.error('[panierController] recalculerPanierPrix :', error);
+    throw error;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 //  INITIALISATION
 // ─────────────────────────────────────────────────────────────
@@ -161,10 +209,6 @@ export async function initialiserPanier(recette, nbPortions, preferences) {
       return ingAjuste;
     });
 
-    const sousTotal      = ingredients.reduce((acc, i) => acc + i.prixTotal, 0);
-    const fraisLivraison = _fraisLivraison(sourcePreferee);
-    const total          = Math.round((sousTotal + fraisLivraison) * 100) / 100;
-
     const panier = {
       recetteId:    recette.id,
       recetteTitre: recette.titre,
@@ -175,11 +219,13 @@ export async function initialiserPanier(recette, nbPortions, preferences) {
         budgetMax:  preferences.budgetMax  ?? 0,
       },
       ingredients,
-      sousTotal:      Math.round(sousTotal * 100) / 100,
-      fraisLivraison,
-      total,
+      sousTotal:      0,
+      fraisLivraison: 0,
+      total:          0,
       creeLe:         new Date().toISOString(),
     };
+
+    await recalculerPanierPrix(panier, preferences);
 
     await sauvegarderPanier(panier);
     return panier;
@@ -374,14 +420,9 @@ export async function modifierQuantite(ingredientNom, nouvelleQuantite) {
 
     ing.quantiteRecette = Math.round(nouvelleQuantite * 1000) / 1000;
     ing.quantitePanier  = ing.quantiteRecette;
-    ing.prixTotal       = Math.round(ing.quantiteRecette * ing.prixUnitaire * 100) / 100;
-
     panier.ingredients[index] = ing;
 
-    // Recalcul des totaux
-    const { sousTotal, total } = _recalculerTotaux(panier);
-    panier.sousTotal = sousTotal;
-    panier.total     = total;
+    await recalculerPanierPrix(panier);
 
     await sauvegarderPanier(panier);
     return panier;
@@ -415,9 +456,7 @@ export async function supprimerIngredient(ingredientNom) {
       throw new Error(`supprimerIngredient : ingrédient "${ingredientNom}" introuvable.`);
     }
 
-    const { sousTotal, total } = _recalculerTotaux(panier);
-    panier.sousTotal = sousTotal;
-    panier.total     = total;
+    await recalculerPanierPrix(panier);
 
     await sauvegarderPanier(panier);
     return panier;
@@ -452,16 +491,16 @@ export async function calculerSousTotal(panier, preferences) {
     const { sourcePreferee = 'supermarche' } = preferences;
 
     const sousTotal = panier.ingredients.reduce((acc, ing) => {
-      const prixUnit = _prixUnitaire(ing, sourcePreferee);
-      let prix;
-
-      if (ing.type === 'pack') {
-        prix = (ing.quantitePanier ?? 1) * prixUnit;
-      } else {
-        prix = (ing.quantiteRecette ?? 0) * prixUnit;
+      if (typeof ing.prixTotal === 'number') {
+        return acc + ing.prixTotal;
       }
 
-      return acc + prix;
+      const prixUnit = _prixUnitaire(ing, sourcePreferee);
+      const prixTotal = ing.type === 'pack'
+        ? (ing.quantitePanier ?? 1) * prixUnit
+        : (ing.quantiteRecette ?? 0) * prixUnit;
+
+      return acc + prixTotal;
     }, 0);
 
     return Math.round(sousTotal * 100) / 100;
@@ -520,15 +559,26 @@ export async function getPanierPourCheckout() {
       return null;
     }
 
+    await recalculerPanierPrix(panier);
+    const sousTotal = panier.sousTotal;
+    const fraisLivraison = panier.fraisLivraison;
+    const total = panier.total;
+
+    try {
+      await sauvegarderPanier(panier);
+    } catch (e) {
+      console.warn('[panierController] getPanierPourCheckout : unable to persist recalculated totals', e);
+    }
+
     // Snapshot propre pour le checkout — pas de mutation du panier en cours
     return {
       recetteId:    panier.recetteId,
       recetteTitre: panier.recetteTitre,
       nbPortions:   panier.nbPortions,
       ingredients:  panier.ingredients.map(ing => ({ ...ing })),
-      sousTotal:    panier.sousTotal,
-      fraisLivraison: panier.fraisLivraison,
-      total:        panier.total,
+      sousTotal,
+      fraisLivraison,
+      total,
       preferences:  { ...panier.preferences },
       creeLe:       panier.creeLe,
     };

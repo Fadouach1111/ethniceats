@@ -327,7 +327,7 @@
 <script type="module">
 import { setupEmailVerificationBanner } from '../../services/emailVerificationBanner.js';
 
-import { getPanierPourCheckout, viderPanier } from '../../controllers/panierController.js';
+import { getPanierPourCheckout, viderPanier, calculerSousTotal, calculerTotal } from '../../controllers/panierController.js';
 import { creerCommande } from '../../controllers/commandeController.js';
 import { getCurrentUser } from '../../services/authService.js';
 import { getPreferences } from '../../controllers/clientController.js';
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('bottom-bar').classList.remove('hidden');
 
     renderIngredients();
-    renderPrix();
+    await renderPrix();
     setupCardInputs();
 
   } catch (e) {
@@ -411,19 +411,19 @@ function renderIngredients() {
 }
 
 // ===== RENDER PRIX =====
-function renderPrix() {
-  // Par défaut, on s'appuie sur les totaux calculés par panierController.
-  // Ça évite de recalculer côté UI avec une logique de prix différente.
-  let sousTotal = typeof panierCheckout.sousTotal === 'number'
-    ? panierCheckout.sousTotal
-    : 0;
-
+async function renderPrix() {
+  // Recalcule depuis la source de vérité du panier pour éviter les totaux périmés.
+  let sousTotal = 0;
   let frais = typeof panierCheckout.fraisLivraison === 'number'
     ? panierCheckout.fraisLivraison
     : 0;
 
-  if (!sousTotal && (panierCheckout.ingredients || []).length) {
+  try {
+    sousTotal = await calculerSousTotal(panierCheckout, preferences);
+  } catch (e) {
+    console.warn('[checkout] calculerSousTotal failed, falling back', e);
     (panierCheckout.ingredients || []).forEach(ing => { sousTotal += _prixIng(ing); });
+    sousTotal = Math.round(sousTotal * 100) / 100;
   }
 
   if (!frais) {
@@ -431,9 +431,17 @@ function renderPrix() {
     frais = source === 'souk' ? 15 : source === 'supermarche' ? 20 : 17;
   }
 
-  const total = typeof panierCheckout.total === 'number'
-    ? panierCheckout.total
-    : (sousTotal + frais);
+  let total;
+  try {
+    total = await calculerTotal(sousTotal, frais);
+  } catch (e) {
+    console.warn('[checkout] calculerTotal failed, falling back', e);
+    total = Math.round((sousTotal + frais) * 100) / 100;
+  }
+
+  panierCheckout.sousTotal = sousTotal;
+  panierCheckout.fraisLivraison = frais;
+  panierCheckout.total = total;
 
   document.getElementById('recap-sous-total').textContent = `${sousTotal} MAD`;
   document.getElementById('recap-frais').textContent = `${frais} MAD`;

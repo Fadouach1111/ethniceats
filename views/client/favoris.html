@@ -255,7 +255,7 @@ function afficherFavoris(favoris) {
 
     card.innerHTML = `
       <div class="p-4 flex gap-4 relative">
-        <div class="w-24 h-24 rounded-xl overflow-hidden bg-surface-container">
+        <div onclick="window.location.href='/recette-detail?id=${r.id}'" class="w-24 h-24 rounded-xl overflow-hidden bg-surface-container cursor-pointer hover:opacity-80 transition-opacity">
           ${r.image
             ? `<img src="${r.image}" class="w-full h-full object-cover"/>`
             : `<div class="w-full h-full flex items-center justify-center">

@@ -163,7 +163,7 @@
     <div class="fixed bottom-0 left-0 lg:left-64 right-0 bg-white border-t border-surface-container-low shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem] z-30">
       <div class="px-6 lg:px-10 pt-5 pb-7 flex items-center justify-between gap-4">
         <div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">Total</p>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">Sous-total</p>
           <p id="prix-total" class="font-headline text-2xl lg:text-3xl text-primary font-bold">— MAD</p>
         </div>
         <button onclick="passerCommande()" class="flex-1 max-w-[300px] bg-primary text-on-primary rounded-full py-4 px-6 font-semibold text-sm uppercase tracking-wide flex items-center justify-center gap-2 shadow-xl shadow-primary/15 hover:opacity-90 active:scale-[0.98] transition-all">
@@ -213,8 +213,7 @@ import {
   sauvegarderPanier,
   supprimerIngredient,
   modifierQuantite,
-  calculerSousTotal,
-  calculerTotal,
+  recalculerPanierPrix,
 } from '../../controllers/panierController.js';
 
 import { getIconeSVG } from '../../services/ingredientIcons.js';
@@ -235,6 +234,10 @@ async function chargerPanier() {
 
   try {
     panierData = await getPanier();
+    if (panierData) {
+      panierData = await recalculerPanierPrix(panierData, preferences);
+      await sauvegarderPanier(panierData);
+    }
 
     document.getElementById('skeleton').classList.add('hidden');
 
@@ -277,7 +280,7 @@ function renderIngredients() {
     card.style.animationDelay = `${idx * 40}ms`;
     card.dataset.nom = ing.nom;
 
-    const prixAffiche = _prixIngredient(ing);
+    const prixAffiche = typeof ing.prixTotal === 'number' ? Math.round(ing.prixTotal * 100) / 100 : _prixIngredient(ing);
 
     const qteAffichee = ing.type === 'pack'
       ? `${ing.quantitePanier} pack${ing.quantitePanier > 1 ? 's' : ''}`
@@ -332,8 +335,8 @@ function _prixIngredient(ing) {
     else prix = ((ing.prixSouk ?? ing.prix ?? 0) + (ing.prixSupermarche ?? ing.prix ?? 0)) / 2;
   }
 
-  if (ing.type === 'pack') return Math.round((ing.quantitePanier ?? 1) * prix);
-  return Math.round((ing.quantiteRecette ?? 0) * prix);
+  if (ing.type === 'pack') return Math.round((ing.quantitePanier ?? 1) * prix * 100) / 100;
+  return Math.round((ing.quantiteRecette ?? 0) * prix * 100) / 100;
 }
 
 function _peutDiminuer(ing) {
@@ -345,18 +348,15 @@ async function updateTotal() {
   if (!panierData) return;
 
   try {
-    const sousTotal = await calculerSousTotal(panierData, preferences);
-    const total = await calculerTotal(sousTotal, panierData.fraisLivraison ?? 0);
+    panierData = await recalculerPanierPrix(panierData, preferences);
+    await sauvegarderPanier(panierData);
 
-    // Persist recalculated totals on the panier object
-    panierData.sousTotal = sousTotal;
-    panierData.total = total;
-    try { await sauvegarderPanier(panierData); } catch (e) { console.warn('[panier] failed saving totals', e); }
-
-    document.getElementById('prix-total').textContent = `${total} MAD`;
+    const sousTotal = panierData.sousTotal ?? 0;
+    renderIngredients();
+    document.getElementById('prix-total').textContent = `${sousTotal} MAD`;
   } catch (e) {
     console.error('[panier] updateTotal error', e);
-    // Fallback: compute a best-effort total from ingredient display prices
+    // Fallback: compute a best-effort subtotal from ingredient display prices
     let fallback = 0;
     (panierData.ingredients || []).forEach(ing => { fallback += _prixIngredient(ing); });
     document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? fallback} MAD`;
@@ -419,9 +419,10 @@ window.augmenterQuantite = async function(nom, type) {
       const step = _step(ing);
       ing.quantiteRecette = Math.round(((ing.quantiteRecette ?? step) + step) * 10) / 10;
     }
+    panierData = await recalculerPanierPrix(panierData, preferences);
     await sauvegarderPanier(panierData);
     renderIngredients();
-    updateTotal();
+    document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? 0} MAD`;
   } catch(e) {
     console.error(e);
     _augmenterLocal(nom, type);
@@ -441,9 +442,10 @@ window.diminuerQuantite = async function(nom, type) {
       if (nouv <= 0) return;
       ing.quantiteRecette = nouv;
     }
+    panierData = await recalculerPanierPrix(panierData, preferences);
     await sauvegarderPanier(panierData);
     renderIngredients();
-    updateTotal();
+    document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? 0} MAD`;
   } catch(e) {
     console.error(e);
   }
@@ -466,10 +468,13 @@ function _augmenterLocal(nom, type) {
     if (!ing) return;
     if (type === 'pack') ing.quantitePanier = (ing.quantitePanier ?? 1) + 1;
     else ing.quantiteRecette = (ing.quantiteRecette ?? 100) + 100;
-    localStorage.setItem('ethniceats_panier', JSON.stringify(p));
     panierData = p;
-    renderIngredients();
-    updateTotal();
+    recalculerPanierPrix(panierData, preferences).then(async () => {
+      await sauvegarderPanier(panierData);
+      localStorage.setItem('ethniceats_panier', JSON.stringify(panierData));
+      renderIngredients();
+      document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? 0} MAD`;
+    }).catch(() => {});
   } catch(e) {}
 }
 
