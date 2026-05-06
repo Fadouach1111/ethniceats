@@ -192,14 +192,19 @@
         <label class="font-label text-sm font-medium text-on-surface-variant mb-2 ml-1" for="password">
           Mot de passe
         </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="••••••••"
-          autocomplete="current-password"
-          class="w-full bg-surface-container-low text-on-surface px-5 py-4 rounded-md outline-none transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] focus:bg-surface-container-high focus:ring-1 focus:ring-primary/20 placeholder:text-on-surface-variant/40 font-body border-none"
-        />
+        <div class="relative">
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            class="w-full bg-surface-container-low text-on-surface px-5 py-4 pr-14 rounded-md outline-none transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] focus:bg-surface-container-high focus:ring-1 focus:ring-primary/20 placeholder:text-on-surface-variant/40 font-body border-none"
+          />
+          <button type="button" onclick="toggleVisiLogin()" class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+            <span id="eye-login" class="material-symbols-outlined" style="font-size:20px;">visibility_off</span>
+          </button>
+        </div>
         <!-- Error password -->
         <p id="error-password" class="hidden mt-2 ml-1 text-xs font-medium text-error font-label"></p>
 
@@ -261,6 +266,17 @@
     const errorPassword = document.getElementById("error-password");
     const errorGlobal   = document.getElementById("error-global");
     const toast         = document.getElementById("toast");
+
+    // ── Visibilité Mot de passe ───────────────────────────────────────────────
+    window.toggleVisiLogin = function() {
+      if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        document.getElementById("eye-login").textContent = "visibility";
+      } else {
+        passwordInput.type = "password";
+        document.getElementById("eye-login").textContent = "visibility_off";
+      }
+    };
 
     // ── Navigation ────────────────────────────────────────────────────────────
     btnRetour.addEventListener("click", () => {

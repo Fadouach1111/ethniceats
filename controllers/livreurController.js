@@ -29,7 +29,9 @@ import Commande from '../models/commande.js';
 import {
   getUtilisateur,
   sauvegarderUtilisateur,
-  getCommandesDisponibles   as fsGetCommandesDisponibles,
+  getCommandesDisponibles          as fsGetCommandesDisponibles,
+  ecouterCommandesDisponiblesFirestore,
+  accepterCommandeTransaction,
   getHistoriqueLivreur,
   mettreAJourStatutCommande,
   sauvegarderCommande,
@@ -121,6 +123,26 @@ export function stopperEcouteCommandes(reference) {
   stopperEcoute(reference);
 }
 
+/**
+ * Écoute en temps réel les commandes disponibles via Firestore onSnapshot.
+ * Quand un livreur accepte une commande, elle disparaît instantanément
+ * chez tous les autres livreurs connectés.
+ *
+ * @param {Function} callback - callback(commandes: Array, erreur?: Error)
+ * @returns {Function} unsubscribe — appeler pour arrêter l'écoute
+ */
+export function ecouterCommandesDisponibles(callback) {
+  try {
+    if (typeof callback !== 'function') {
+      throw new Error('ecouterCommandesDisponibles : callback doit être une fonction.');
+    }
+    return ecouterCommandesDisponiblesFirestore(callback);
+  } catch (erreur) {
+    console.error('[livreurController] ecouterCommandesDisponibles :', erreur);
+    throw erreur;
+  }
+}
+
 // ─── 3. Accepter une commande ──────────────────────────────────────────────────
 
 /**
@@ -151,25 +173,48 @@ export async function accepterCommande(livreurId, commandeId) {
     const donnéesLivreur = await getUtilisateur(livreurId);
     if (!donnéesLivreur) throw new Error(`accepterCommande : livreur introuvable (id="${livreurId}").`);
 
-    // 2. Instancier le modèle — lève une erreur si déjà en livraison / indisponible
-    const livreur = Livreur.depuisObjet(donnéesLivreur);
-    livreur.accepterCommande(commandeId); // met statutActuel = "en_livraison"
+    // Réconciliation défensive :
+    // si le profil est resté bloqué sur "en_livraison" alors qu'aucune
+    // commande active n'est encore assignée à ce livreur, on le repasse
+    // en "disponible" pour ne pas bloquer le bouton Accepter.
+    if (donnéesLivreur.statutActuel === 'en_livraison') {
+      const commandesEnCours = await getCommandesEnCours(livreurId);
+      if (!commandesEnCours.length) {
+        donnéesLivreur.statutActuel = 'disponible';
+      }
+    }
 
-    // 3. Synchroniser dans RTDB :
+    // 2. Vérifier uniquement la disponibilité réelle du livreur.
+    // On évite ici de dépendre d'une validation stricte du profil complet
+    // (ex. anciens profils avec téléphone/champs incomplets), car accepter
+    // une commande ne nécessite que l'identité du livreur et son statut.
+    const statutActuel = donnéesLivreur.statutActuel ?? 'disponible';
+    if (statutActuel === 'en_livraison') {
+      throw new Error('accepterCommande : le livreur a déjà une commande en cours.');
+    }
+    if (statutActuel === 'indisponible') {
+      throw new Error('accepterCommande : le livreur est indisponible.');
+    }
+
+    // 3. Transaction atomique Firestore : garantit qu'une seule commande
+    //    est acceptée même si plusieurs livreurs cliquent en même temps.
+    await accepterCommandeTransaction(commandeId, livreurId);
+
+    // 4. Synchroniser dans RTDB :
     //    - commandes/{commandeId} → livreurId + statut "confirmee"
-    //    - retire de commandesDisponibles
+    //    - retire de commandesDisponibles (disparition chez les autres livreurs)
     //    - écrit dans livreurs/{livreurId} les infos visibles par le client
     await assignerLivreurRealtime(commandeId, livreurId);
 
     // Publier les infos du livreur dans RTDB pour le client (nom + telephoneContact)
-    await _publierInfosLivreurRTDB(livreurId, livreur.nomComplet, livreur.telephoneContact);
-
-    // 4. Mettre à jour la commande dans Firestore
-    await mettreAJourStatutCommande(commandeId, 'confirmee');
-    await sauvegarderCommande({ id: commandeId, livreurId, statut: 'confirmee' });
+    await _publierInfosLivreurRTDB(
+      livreurId,
+      donnéesLivreur.nomComplet ?? '',
+      donnéesLivreur.telephoneContact ?? ''
+    );
 
     // 5. Mettre à jour le statut du livreur dans Firestore
-    await sauvegarderUtilisateur(livreurId, livreur.versObjet());
+    await sauvegarderUtilisateur(livreurId, { statutActuel: 'en_livraison' });
 
   } catch (erreur) {
     console.error('[livreurController] accepterCommande :', erreur);

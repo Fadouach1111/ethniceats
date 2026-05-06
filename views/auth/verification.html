@@ -129,16 +129,14 @@
 <body class="bg-surface text-on-surface font-body min-h-screen flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed">
 
   <!-- TopAppBar -->
-  <header class="w-full top-0 sticky bg-surface z-50 flex items-center justify-between px-6 py-4 h-16">
-    <!-- Back arrow → register.html -->
+  <header id="top-bar" class="w-full top-0 sticky bg-surface z-50 flex items-center justify-between px-6 py-4 h-16">
+    <!-- Back arrow — destination gérée en JS selon le contexte -->
     <button
       id="btn-back"
       aria-label="Retour"
       class="text-primary hover:opacity-80 transition-opacity active:scale-95 duration-200 flex items-center justify-center"
     >
-      <a href="/register">
       <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
-        </a>
     </button>
     <!-- Brand -->
     <h1 class="font-headline font-black tracking-tighter text-primary text-2xl absolute left-1/2 -translate-x-1/2">
@@ -163,14 +161,15 @@
     <!-- Header text -->
     <div class="mb-10 text-center fade-in fade-in-delay-1">
       <h2 class="font-headline font-bold text-[2.5rem] leading-tight tracking-tight text-primary mb-4">
-        Vérifiez votre email
+        <span id="titre-verif">Vérifiez votre email</span>
       </h2>
       <p class="font-body text-base text-on-surface-variant leading-relaxed">
-        Un lien de vérification a été envoyé à
+        <span id="texte-intro">Un lien de vérification a été envoyé à</span>
         <br/>
         <span id="user-email" class="font-bold text-on-surface">…</span>.
         <br/><br/>
-        Cliquez sur le lien dans l'email pour activer votre compte.
+        <span id="texte-action">Cliquez sur le lien dans l'email pour activer votre compte.</span>
+        <br/><span class="text-sm text-on-surface-variant mt-1 block">📩 Si vous ne trouvez pas l'email, vérifiez votre dossier <strong>spam</strong> ou <strong>courrier indésirable</strong>.</span>
       </p>
     </div>
 
@@ -315,25 +314,49 @@
       }, 1000);
     }
 
-    // ── Init: display user email ───────────────────────────────────────────────
+    // ── Détecter le contexte ─────────────────────────────────────────────────
+    const urlParams     = new URLSearchParams(window.location.search);
+    const estChangement = urlParams.get("context") === "changement-email";
+
+    // ── Adapter titre, texte et header selon le contexte ────────────────────
+    if (estChangement) {
+      document.getElementById("titre-verif").textContent  = "Vérifiez votre nouvel email";
+      document.getElementById("texte-intro").textContent  = "Un lien de confirmation a été envoyé à votre nouvelle adresse :";
+      document.getElementById("texte-action").textContent = "Cliquez sur le lien pour confirmer votre nouvel email. Vous pourrez ensuite vous reconnecter avec votre nouvelle adresse.";
+      // Cacher complètement le bouton retour — pas utile pour le changement email
+      document.getElementById("btn-back").style.visibility = "hidden";
+    }
+
+    // ── Afficher le bon email ─────────────────────────────────────────────────
     (async () => {
       try {
-        const user = await fetchCurrentUser();
-        if (user && user.email) {
-          elEmail.textContent = user.email;
+        if (estChangement) {
+          // Afficher le NOUVEL email stocké lors du changement (pas l'ancien)
+          const nouvelEmail = sessionStorage.getItem("ee_email_en_attente") || "";
+          elEmail.textContent = nouvelEmail || "votre nouvelle adresse email";
         } else {
-          // Fallback: try sessionStorage (set by some flows)
-          const storedEmail = sessionStorage.getItem("ee_email_pending") || "";
-          elEmail.textContent = storedEmail || "votre adresse email";
+          // Inscription : afficher l'email Firebase actuel
+          const user = await fetchCurrentUser();
+          if (user && user.email) {
+            elEmail.textContent = user.email;
+          } else {
+            const storedEmail = sessionStorage.getItem("ee_email_pending") || "";
+            elEmail.textContent = storedEmail || "votre adresse email";
+          }
         }
       } catch {
         elEmail.textContent = "votre adresse email";
       }
     })();
 
-    // ── Back button → register route ───────────────────────────────────────────
+    // ── Bouton retour : destination selon contexte ────────────────────────────
     btnBack.addEventListener("click", () => {
-      window.location.href = "/register";
+      if (estChangement) {
+        const role = sessionStorage.getItem("ee_role_pending") || "";
+        window.location.href = role === "livreur" ? "/livreur/modifier-profil" : "/modifier-profil-client";
+      } else {
+        window.location.href = "/register";
+      }
     });
 
     // ── Primary CTA: check verification ───────────────────────────────────────
@@ -342,14 +365,26 @@
       setVerifyLoading(true);
 
       try {
-        const résultat = await handleVerificationOTP();
-        // If handleVerificationOTP redirects, execution stops here.
-        // If it returns (email not yet verified), show a message.
-        if (!résultat.success || !résultat.vérifié) {
+        if (estChangement) {
+          // Changement email : informer et rediriger vers profil
           showFeedback(
-            résultat.message ||
-            "Votre email n'a pas encore été vérifié. Cliquez sur le lien reçu par email, puis réessayez."
+            "Votre nouvel email sera actif après avoir cliqué sur le lien de confirmation. Reconnectez-vous ensuite avec votre nouvelle adresse.",
+            "info"
           );
+          sessionStorage.removeItem("ee_email_en_attente");
+          const role = sessionStorage.getItem("ee_role_pending") || "";
+          setTimeout(() => {
+            window.location.href = role === "livreur" ? "/livreur/profil" : "/profil-client";
+          }, 3000);
+        } else {
+          // Inscription : vérifier via Firebase
+          const résultat = await handleVerificationOTP();
+          if (!résultat.success || !résultat.vérifié) {
+            showFeedback(
+              résultat.message ||
+              "Votre email n'a pas encore été vérifié. Cliquez sur le lien reçu par email, puis réessayez."
+            );
+          }
         }
       } catch (err) {
         showFeedback("Une erreur est survenue. Veuillez réessayer.");
@@ -358,17 +393,16 @@
       }
     });
 
-    // ── Silent auto-check on load ───────────────────────────────────────────
-    // If the user already clicked the verification link and came back,
-    // this will redirect to /preferences (client) or the proper role page.
-    // If not verified yet, it simply stays on this page.
-    (async () => {
-      try {
-        await handleVerificationOTP();
-      } catch {
-        // Silent on purpose
-      }
-    })();
+    // ── Silent auto-check on load (inscription uniquement) ─────────────────
+    if (!estChangement) {
+      (async () => {
+        try {
+          await handleVerificationOTP();
+        } catch {
+          // Silent on purpose
+        }
+      })();
+    }
 
     // ── Resend email ───────────────────────────────────────────────────────────
     btnResend.addEventListener("click", async () => {

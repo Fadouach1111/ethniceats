@@ -3,20 +3,15 @@
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>EthnicEats - Choisissez vos préférences</title>
+  <title>EthnicEats - Modifier mes préférences</title>
 
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet"/>
-
-  <!-- Material Symbols -->
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 
-  <!-- Tailwind Config -->
   <script id="tailwind-config">
     tailwind.config = {
       darkMode: "class",
@@ -96,8 +91,6 @@
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
     }
-
-    /* Spinner */
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner {
       display: inline-block;
@@ -115,7 +108,12 @@
 
 <body class="bg-surface text-on-surface min-h-screen antialiased flex flex-col">
 
-
+  <!-- TopAppBar avec flèche retour -->
+  <header class="flex items-center px-6 py-4 w-full backdrop-blur-md sticky top-0 z-50 bg-[#fcf9f8] relative border-b border-outline-variant/10">
+    <a href="/profil-client" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-primary flex-shrink-0">
+      <span class="material-symbols-outlined">arrow_back</span>
+    </a>
+  </header>
 
   <!-- Main Content -->
   <main class="flex-grow flex flex-col px-6 pt-4 pb-12 max-w-3xl mx-auto w-full lg:justify-center">
@@ -123,10 +121,10 @@
     <!-- Heading -->
     <div class="flex flex-col gap-3 mb-10 text-center md:text-left pt-2">
       <h2 class="font-body text-3xl md:text-4xl lg:text-5xl font-bold text-primary">
-        Choisissez vos préférences
+        Vos préférences
       </h2>
       <p class="font-body text-sm md:text-base text-on-surface-variant">
-        Ces choix nous permettent de sélectionner les meilleurs ingrédients et sources pour vos recettes
+        Modifiez les critères pour sélectionner les meilleurs ingrédients
       </p>
     </div>
 
@@ -243,40 +241,33 @@
 
     </div>
 
-    <!-- Error message -->
+    <!-- Error / Success -->
     <p id="error-global" class="hidden mt-6 text-sm font-medium text-error font-label text-center"></p>
-    <p id="ok-global" class="hidden mt-6 text-sm font-medium text-green-700 font-label text-center flex items-center justify-center gap-1"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:16px;">check_circle</span>Préférences enregistrées !</p>
+    <p id="ok-global" class="hidden mt-6 text-sm font-medium text-green-700 font-label text-center flex items-center justify-center gap-1"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:16px;">check_circle</span>Modifications enregistrées</p>
 
-    <!-- Bottom Action Area -->
+    <!-- Bouton -->
     <div class="mt-12 flex flex-col items-center gap-3 w-full">
       <button
         id="btn-continuer"
         type="button"
         class="w-full max-w-[400px] bg-gradient-to-b from-primary to-primary-container text-on-primary font-body font-bold text-lg md:text-xl py-3 rounded-full shadow-[0px_12px_32px_rgba(27,28,28,0.06)] active:scale-[0.98] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Continuer
+        Enregistrer
       </button>
-
     </div>
 
   </main>
 
-  <!-- Selection JS — kept exactly as in reference file -->
   <script>
     function selectOption(btn) {
       const container = btn.closest('.flex.flex-wrap.gap-3');
       const buttons = container.querySelectorAll('button');
-
       buttons.forEach(b => {
         b.setAttribute('aria-pressed', 'false');
         b.className = 'flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border border-outline-variant text-on-surface font-label text-sm md:text-base font-medium hover:bg-surface-container-low transition-all duration-300';
         const div = b.querySelector('div.rounded-full');
-        if (div) {
-          div.className = 'w-4 h-4 rounded-full border border-outline-variant';
-          div.innerHTML = '';
-        }
+        if (div) { div.className = 'w-4 h-4 rounded-full border border-outline-variant'; div.innerHTML = ''; }
       });
-
       btn.setAttribute('aria-pressed', 'true');
       btn.className = 'flex items-center gap-3 py-2 px-4 rounded-lg bg-surface-container-lowest border-2 border-[#1B4332] text-[#1B4332] font-label text-sm md:text-base font-medium transition-all duration-300';
       const activeDiv = btn.querySelector('div.rounded-full');
@@ -287,26 +278,44 @@
     }
   </script>
 
-  <!-- Controller logic -->
   <script type="module">
-    import { getCurrentUser }        from "../../controllers/authController.js";
-    import { sauvegarderPreferences } from "../../controllers/clientController.js";
+    import { getCurrentUser }                     from "../../controllers/authController.js";
+    import { getProfil, sauvegarderPreferences }  from "../../controllers/clientController.js";
 
-    // ── Budgets max en MAD par niveau ─────────────────────────────────────────
-    const BUDGET_MAX = {
-      faible: 100,
-      moyen:  300,
-      eleve:  1000,
-    };
+    const BUDGET_MAX = { faible: 100, moyen: 300, eleve: 1000 };
 
-    // ── Éléments DOM ──────────────────────────────────────────────────────────
     const btnContinuer = document.getElementById("btn-continuer");
     const errorGlobal  = document.getElementById("error-global");
     const okGlobal     = document.getElementById("ok-global");
 
+    // Pré-remplir avec les préférences existantes
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const u = await getCurrentUser();
+        if (u && u.uid) {
+          const p = await getProfil(u.uid);
+          if (p.success && p.profil && p.profil.preferences) {
+            const prefs = p.profil.preferences;
+            if (prefs.sourcePreferee) {
+              const b = document.querySelector(`[data-group="source"] button[data-value="${prefs.sourcePreferee}"]`);
+              if (b) selectOption(b);
+            }
+            if (prefs.priorite) {
+              const b = document.querySelector(`[data-group="priorite"] button[data-value="${prefs.priorite}"]`);
+              if (b) selectOption(b);
+            }
+            if (prefs.budgetMax !== undefined) {
+              let bLab = 'faible';
+              if (prefs.budgetMax >= 1000) bLab = 'eleve';
+              else if (prefs.budgetMax >= 300) bLab = 'moyen';
+              const b = document.querySelector(`[data-group="budget"] button[data-value="${bLab}"]`);
+              if (b) selectOption(b);
+            }
+          }
+        }
+      } catch(e) {}
+    });
 
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
     function getValeurSelectionnee(group) {
       const container = document.querySelector(`[data-group="${group}"]`);
       const activeBtn = container.querySelector('button[aria-pressed="true"]');
@@ -320,7 +329,7 @@
 
     function désactiverSpinner() {
       btnContinuer.disabled = false;
-      btnContinuer.textContent = "Continuer";
+      btnContinuer.textContent = "Enregistrer";
     }
 
     function afficherErreur(msg) {
@@ -333,27 +342,23 @@
       errorGlobal.classList.add("hidden");
     }
 
-    // ── Soumission ────────────────────────────────────────────────────────────
     btnContinuer.addEventListener("click", async () => {
       masquerErreur();
 
-      // 1. Récupérer l'utilisateur connecté
       let utilisateur;
       try {
         utilisateur = await getCurrentUser();
       } catch (err) {
         afficherErreur("Impossible de vérifier votre session. Veuillez vous reconnecter.");
-        console.error("[preferences.html] getCurrentUser", err);
         return;
       }
 
       if (!utilisateur) {
         afficherErreur("Session expirée. Veuillez vous reconnecter.");
-        window.location.href = "login.html";
+        window.location.href = "/login";
         return;
       }
 
-      // 2. Lire les valeurs sélectionnées
       const sourcePreferee = getValeurSelectionnee("source");
       const budgetLabel    = getValeurSelectionnee("budget");
       const priorite       = getValeurSelectionnee("priorite");
@@ -364,10 +369,8 @@
       }
 
       const budgetMax = BUDGET_MAX[budgetLabel];
-
       activerSpinner();
 
-      // 3. Sauvegarder via le contrôleur
       try {
         const résultat = await sauvegarderPreferences(utilisateur.uid, {
           budgetMax,
@@ -377,15 +380,14 @@
 
         if (résultat.success) {
           okGlobal.classList.remove('hidden');
-          setTimeout(() => { window.location.href = '/accueil'; }, 1500);
+          setTimeout(() => { window.location.href = '/profil-client'; }, 1500);
         } else {
           afficherErreur(résultat.message || "Une erreur est survenue. Veuillez réessayer.");
           désactiverSpinner();
         }
-
       } catch (err) {
         afficherErreur("Une erreur inattendue est survenue. Veuillez réessayer.");
-        console.error("[preferences.html] sauvegarderPreferences", err);
+        console.error("[modifier-preferences.html] sauvegarderPreferences", err);
         désactiverSpinner();
       }
     });

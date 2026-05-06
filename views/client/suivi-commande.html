@@ -124,6 +124,45 @@
 
 </main>
 
+<!-- ===== POPUP LIVREUR ARRIVÉ ===== -->
+<div id="popup-arrive" class="hidden fixed inset-0 z-50 overlay flex items-center justify-center px-6 bg-black/40 backdrop-blur-sm">
+  <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+    <div class="h-32 bg-primary flex items-center justify-center relative overflow-hidden">
+      <div class="relative z-10 flex items-center justify-center">
+        <div class="relative w-16 h-16 ring-pulse">
+          <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl">
+            <span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings:'FILL' 1">directions_bike</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="p-6 text-center">
+      <h3 class="font-headline text-xl text-primary font-bold mb-2">Livreur arrivé !</h3>
+      <p class="text-on-surface-variant text-sm mb-6 leading-relaxed">Votre livreur est arrivé à votre adresse. Préparez-vous à réceptionner votre commande.</p>
+      <button onclick="fermerPopupArrive()"
+        class="w-full bg-primary text-on-primary rounded-full py-3.5 font-semibold text-sm uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all">
+        OK, j'arrive !
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV MOBILE -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-4 bg-[#fbf9f8]/90 backdrop-blur-2xl rounded-t-[2rem] shadow-[0_-12px_32px_rgba(27,28,28,0.04)] font-['Manrope'] text-[11px] font-medium uppercase tracking-widest">
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/accueil">
+    <span class="material-symbols-outlined mb-1">home</span><span>Accueil</span>
+  </a>
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/panier">
+    <span class="material-symbols-outlined mb-1">shopping_bag</span><span>Panier</span>
+  </a>
+  <a class="nav-item active flex flex-col items-center justify-center px-4 py-2 transition-all" href="/suivi-commande">
+    <span class="material-symbols-outlined mb-1">local_shipping</span><span>Suivi</span>
+  </a>
+  <a class="nav-item flex flex-col items-center justify-center px-4 py-2 transition-all" href="/profil-client">
+    <span class="material-symbols-outlined mb-1">person</span><span>Profil</span>
+  </a>
+</nav>
+
 <script type="module">
 import { getCommandesEnCours, ecouterStatutCommande } from '../../controllers/commandeController.js';
 import { getCurrentUser } from '../../services/authService.js';
@@ -276,6 +315,7 @@ async function demarrerEcoute(commandeId) {
             label.textContent = '🛵 Livreur arrivé !';
             label.style.color = '#775a19';
           }
+          document.getElementById('popup-arrive').classList.remove('hidden');
         },
         onLivree: (id) => {
           // Supprimer la carte
@@ -294,6 +334,10 @@ async function demarrerEcoute(commandeId) {
     if (res.success) stoppers[commandeId] = res.stopperEcoute;
   } catch(e) { console.error('[suivi] écoute', e); }
 }
+
+window.fermerPopupArrive = function() {
+  document.getElementById('popup-arrive').classList.add('hidden');
+};
 
 // Nettoyage
 window.addEventListener('beforeunload', () => {

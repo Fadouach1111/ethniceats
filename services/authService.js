@@ -266,7 +266,12 @@ async function login(email, motDePasse) {
     }
 
     // ── Redirection selon le rôle ─────────────────────────────────────────
-    const destination = REDIRECT[role] ?? REDIRECT.choixRole;
+    let destination;
+    if (role === "client" && profil.preferencesDefinies === false) {
+      destination = "/preferences?from=inscription";
+    } else {
+      destination = REDIRECT[role] ?? REDIRECT.choixRole;
+    }
     _rediriger(destination);
 
     return { success: true, role, message: `Connexion réussie en tant que ${role}.` };
@@ -427,13 +432,31 @@ async function modifierProfil(userId, données = {}) {
           throw new Error(`Email invalide : "${nouvelEmail}".`);
         }
 
+        // Réauthentification obligatoire avant de changer l'email
+        // (Firebase exige une session récente pour cette opération sensible)
+        if (!données.motDePasseActuel) {
+          throw new Error("Votre mot de passe actuel est requis pour modifier l'email.");
+        }
+        const { EmailAuthProvider } = await import('https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js');
+        const credential = EmailAuthProvider.credential(user.email, données.motDePasseActuel);
+        await reauthenticateWithCredential(user, credential);
+
         // verifyBeforeUpdateEmail envoie un lien au NOUVEL email.
         // Firebase ne met à jour l'email Auth qu'après clic sur le lien.
-        await verifyBeforeUpdateEmail(user, nouvelEmail);
+        // Si Firebase rejette (session expirée, etc.) on lève une erreur claire.
+        try {
+          await verifyBeforeUpdateEmail(user, nouvelEmail);
+        } catch (firebaseErr) {
+          const msg = _traduireErreurAuth(firebaseErr);
+          throw new Error(msg);
+        }
 
         // On marque emailVerifie = false en attendant la confirmation
-        miseAJourFirestore.emailVerifie    = false;
-        miseAJourFirestore.emailEnAttente  = nouvelEmail;
+        // On enregistre aussi le nouvel email dans Firestore (emailEnAttente)
+        // pour que profil-client et modifier-profil affichent le bon email
+        miseAJourFirestore.emailVerifie   = false;
+        miseAJourFirestore.emailEnAttente = nouvelEmail;
+        miseAJourFirestore.email          = nouvelEmail;
 
         emailChange = true;
       }
@@ -447,7 +470,8 @@ async function modifierProfil(userId, données = {}) {
     // ── Redirection si changement d'email ─────────────────────────────────
     if (emailChange) {
       sessionStorage.setItem("ee_role_pending", (await _getProfilFirestore(userId))?.role ?? "");
-      _rediriger(REDIRECT.verification);
+      sessionStorage.setItem("ee_email_en_attente", données.email.trim().toLowerCase());
+      _rediriger(REDIRECT.verification + "?context=changement-email");
       return {
         success: true,
         emailChange: true,

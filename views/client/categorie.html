@@ -167,7 +167,22 @@ const utilisateur = { nomComplet: 'vous' };
 const params = new URLSearchParams(window.location.search);
 const categorie = params.get('cat') || 'Marocain';
 
-document.getElementById('page-title').textContent = `Cuisine ${categorie.toLowerCase()}`;
+const TITRES_CUISINES = {
+  marocain: 'Cuisine marocaine',
+  italien: 'Cuisine italienne',
+  japonais: 'Cuisine japonaise',
+  chinois: 'Cuisine chinoise',
+  coreen: 'Cuisine coréenne',
+  coréen: 'Cuisine coréenne',
+  vietnamien: 'Cuisine vietnamienne',
+  indien: 'Cuisine indienne',
+  mexicain: 'Cuisine mexicaine',
+  espagnol: 'Cuisine espagnole',
+  francais: 'Cuisine française',
+  français: 'Cuisine française',
+};
+
+document.getElementById('page-title').textContent = TITRES_CUISINES[categorie.toLowerCase()] || `Cuisine ${categorie.toLowerCase()}`;
 document.title = `EthnicEats — ${categorie}`;
 
 // ─── Charger toutes les recettes de la catégorie ──────────────────────────────

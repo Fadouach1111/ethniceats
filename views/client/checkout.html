@@ -180,6 +180,7 @@
             <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Téléphone</label>
             <input id="field-tel" type="tel" placeholder="Ex : 0612345678"
               class="field-input w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-sm font-medium placeholder:text-outline placeholder:font-normal"/>
+            <p class="text-xs text-on-surface-variant/70 mt-1 ml-1">Format : 06XXXXXXXX ou +212 6XX XXX XXX</p>
             <p id="err-tel" class="hidden text-error text-xs mt-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">error</span>Numéro invalide</p>
           </div>
         </div>
@@ -234,7 +235,7 @@
               </div>
               <div class="space-y-1.5">
                 <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">CVV</label>
-                <input id="field-cvv" type="password" placeholder="•••" maxlength="4"
+                <input id="field-cvv" type="text" placeholder="•••" maxlength="4" title="3 chiffres au dos de votre carte"
                   class="field-input w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-sm font-medium placeholder:text-outline placeholder:font-normal"/>
               </div>
             </div>
@@ -392,56 +393,18 @@ function renderIngredients() {
 
 // ===== RENDER PRIX =====
 function renderPrix() {
-  // Par défaut, on s'appuie sur les totaux calculés par panierController.
-  // Ça évite de recalculer côté UI avec une logique de prix différente.
-  let sousTotal = typeof panierCheckout.sousTotal === 'number'
-    ? panierCheckout.sousTotal
-    : 0;
-
-  let frais = typeof panierCheckout.fraisLivraison === 'number'
-    ? panierCheckout.fraisLivraison
-    : 0;
-
-  if (!sousTotal && (panierCheckout.ingredients || []).length) {
-    (panierCheckout.ingredients || []).forEach(ing => { sousTotal += _prixIng(ing); });
-  }
-
-  if (!frais) {
-    const source = preferences.sourcePreferee || 'mix';
-    frais = source === 'souk' ? 15 : source === 'supermarche' ? 20 : 17;
-  }
-
-  const total = typeof panierCheckout.total === 'number'
-    ? panierCheckout.total
-    : (sousTotal + frais);
+  const sousTotal = typeof panierCheckout.sousTotal === 'number' ? panierCheckout.sousTotal : 0;
+  const frais = typeof panierCheckout.fraisLivraison === 'number' ? panierCheckout.fraisLivraison : 0;
+  const total = sousTotal + frais;
 
   document.getElementById('recap-sous-total').textContent = `${sousTotal} MAD`;
   document.getElementById('recap-frais').textContent = `${frais} MAD`;
   document.getElementById('recap-total').textContent = `${total} MAD`;
   document.getElementById('total-label').textContent = `Total à payer : ${total} MAD`;
-
-  // Stocker pour soumission
-  window._sousTotal = sousTotal;
-  window._fraisLivraison = frais;
-  window._total = total;
 }
 
 function _prixIng(ing) {
-  // Si le panier provient du panierController, `prixTotal` et `prixUnitaire` sont fiables.
-  if (typeof ing.prixTotal === 'number') return Math.round(ing.prixTotal);
-
-  let prixUnitaire;
-  if (ing.prixUnitaire != null) {
-    prixUnitaire = ing.prixUnitaire;
-  } else {
-    const source = preferences.sourcePreferee || 'mix';
-    if (source === 'souk') prixUnitaire = ing.prixSouk ?? ing.prix ?? 0;
-    else if (source === 'supermarche') prixUnitaire = ing.prixSupermarche ?? ing.prix ?? 0;
-    else prixUnitaire = ((ing.prixSouk ?? ing.prix ?? 0) + (ing.prixSupermarche ?? ing.prix ?? 0)) / 2;
-  }
-
-  if (ing.type === 'pack') return Math.round((ing.quantitePanier ?? 1) * prixUnitaire);
-  return Math.round((ing.quantiteRecette ?? 0) * prixUnitaire);
+  return Math.round(ing.prixTotal ?? 0);
 }
 
 // ===== PAIEMENT =====
@@ -569,7 +532,7 @@ window.soumettre = async function() {
 
     const result = await creerCommande(
       clientId,
-      panierCheckout.ingredients,
+      panierCheckout,
       adresse,
       modePaiement,
       preferences

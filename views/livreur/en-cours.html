@@ -86,11 +86,6 @@
   <a href="/livreur/commandes" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">receipt_long</span>Commandes</a>
   <a href="/livreur/en-cours" class="sidebar-item active flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">local_shipping</span>En cours</a>
   <a href="/livreur/profil" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">person</span>Profil</a>
-  <div class="mt-auto w-full">
-    <button onclick="confirmerDeconnexion()" class="sidebar-item flex items-center gap-3 w-full px-4 py-3 text-error hover:text-error">
-      <span class="material-symbols-outlined">logout</span>Déconnexion
-    </button>
-  </div>
 </nav>
 
 <!-- MAIN -->
@@ -157,10 +152,10 @@
               <span class="material-symbols-outlined" style="font-size:18px;">location_on</span>
               <span id="c-adr" class="truncate"></span>
             </div>
-            <div class="flex items-center gap-2 text-sm text-on-surface font-semibold">
+            <a href="#" id="c-phone-link" class="flex items-center gap-2 text-sm text-on-surface font-semibold hover:text-primary transition-colors">
               <span class="material-symbols-outlined" style="font-size:18px;">phone</span>
               <span id="c-phone"></span>
-            </div>
+            </a>
           </div>
           <!-- Buttons -->
           <div class="flex flex-col gap-2">
@@ -191,7 +186,7 @@
               <div class="flex justify-between text-sm font-bold border-t border-outline-variant/20 pt-1.5 mt-0.5"><span>Total</span><span id="c-total2" class="text-primary"></span></div>
             </div>
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Adresse complète</p>
-            <p id="c-adr-full" class="text-sm text-on-surface italic"></p>
+            <p id="c-adr-full" class="text-sm text-on-surface"></p>
           </div>
         </div>
       </div>
@@ -242,9 +237,13 @@ const STATUT_IDX = Object.fromEntries(STEPS.map((s,i) => [s.statut, i]));
 let _activeCmd = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // await protegerPage('livreur'); // BYPASS TEST
+  await protegerPage('livreur');
   const user = await getCurrentUser();
   const livreurId = user?.uid || null;
+  if (!livreurId) {
+    window.location.href = '/auth/choix-role';
+    return;
+  }
   await charger(livreurId);
 });
 
@@ -283,6 +282,7 @@ function fillCard(cmd) {
   document.getElementById('c-nb').textContent      = `${nb} ingrédient${nb > 1 ? 's' : ''}`;
   document.getElementById('c-adr').textContent     = cmd.adresseLivraison?.adresse ?? '—';
   document.getElementById('c-phone').textContent   = cmd.adresseLivraison?.telephone ?? '—';
+  document.getElementById('c-phone-link').href     = `tel:${cmd.adresseLivraison?.telephone ?? ''}`;
   document.getElementById('c-sous-total').textContent = `${cmd.sousTotal ?? 0} MAD`;
   document.getElementById('c-frais').textContent   = `${cmd.fraisLivraison ?? 0} MAD`;
   document.getElementById('c-total2').textContent  = `${cmd.prixTotal} MAD`;
@@ -293,7 +293,8 @@ function fillCard(cmd) {
   (cmd.panier || []).forEach(i => {
     const p = document.createElement('p');
     p.className = 'text-sm text-on-surface';
-    p.innerHTML = `${i.nom} <span class="text-on-surface-variant">— ${i.quantite} ${i.unite || ''}</span>`;
+    let qteInfos = i.type === 'pack' ? `${i.quantitePanier ?? i.quantiteRecette ?? 1} pack(s)` : `${i.quantiteRecette ?? i.quantite ?? ''} ${i.unite || ''}`;
+    p.innerHTML = `${i.nom} <span class="text-on-surface-variant">— ${qteInfos}</span>`;
     ingEl.appendChild(p);
   });
 

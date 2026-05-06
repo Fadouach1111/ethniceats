@@ -23,6 +23,8 @@ import {
   query,
   where,
   getDocs,
+  onSnapshot,
+  runTransaction,
   serverTimestamp,
   orderBy,
 } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
@@ -182,6 +184,86 @@ export async function getCommandesDisponibles() {
     console.error('[firestoreService] getCommandesDisponibles :', error);
     throw error;
   }
+}
+
+/**
+ * Écoute en temps réel les commandes disponibles via Firestore onSnapshot.
+ * Dès qu'une commande est acceptée, elle disparaît instantanément chez tous
+ * les autres livreurs connectés sans rechargement de page.
+ *
+ * @param {Function} callback - callback(commandes: Array, erreur?: Error)
+ * @returns {Function} unsubscribe — appeler pour arrêter l'écoute
+ */
+export function ecouterCommandesDisponiblesFirestore(callback) {
+  if (typeof callback !== 'function') {
+    throw new Error('ecouterCommandesDisponiblesFirestore : callback doit être une fonction.');
+  }
+
+  const q = query(
+    collection(db, 'commandes'),
+    where('statut', '==', 'commande_passee'),
+    where('livreurId', '==', '')
+  );
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snap) => {
+      const commandes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      commandes.sort((a, b) => {
+        const da  = Date.parse(a.dateCreation || '') || 0;
+        const db_ = Date.parse(b.dateCreation || '') || 0;
+        return db_ - da;
+      });
+      callback(commandes, null);
+    },
+    (erreur) => {
+      console.error('[firestoreService] ecouterCommandesDisponiblesFirestore :', erreur);
+      callback([], erreur);
+    }
+  );
+
+  return unsubscribe;
+}
+
+/**
+ * Accepte une commande de façon atomique via runTransaction Firestore.
+ * Garantit qu'une commande ne peut jamais être acceptée par deux livreurs
+ * simultanément même si plusieurs cliquent en même temps.
+ *
+ * @param {string} commandeId
+ * @param {string} livreurId
+ * @returns {Promise<void>}
+ * @throws {Error} si la commande est déjà acceptée
+ */
+export async function accepterCommandeTransaction(commandeId, livreurId) {
+  if (!commandeId || typeof commandeId !== 'string') {
+    throw new Error('accepterCommandeTransaction : commandeId invalide.');
+  }
+  if (!livreurId || typeof livreurId !== 'string') {
+    throw new Error('accepterCommandeTransaction : livreurId invalide.');
+  }
+
+  const ref = doc(db, 'commandes', commandeId);
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+
+    if (!snap.exists()) {
+      throw new Error("Cette commande n'existe plus.");
+    }
+
+    const data = snap.data();
+
+    if (data.statut !== 'commande_passee' || data.livreurId !== '') {
+      throw new Error('Cette commande a déjà été acceptée par un autre livreur.');
+    }
+
+    transaction.update(ref, {
+      statut:    'confirmee',
+      livreurId: livreurId,
+      updatedAt: serverTimestamp(),
+    });
+  });
 }
 
 /**

@@ -71,10 +71,24 @@
     <div>
       <label class="field-label" for="field-nom">Nom complet</label>
       <input class="field-input" id="field-nom" type="text" placeholder="Votre nom complet"/>
+      <p class="text-xs text-on-surface-variant mt-1.5 ml-1">Au moins 2 caractères</p>
     </div>
     <div>
       <label class="field-label" for="field-email">Email</label>
-      <input class="field-input" id="field-email" type="email" placeholder="votre@email.com"/>
+      <input class="field-input" id="field-email" type="email" placeholder="votre@email.com" oninput="onEmailChange()"/>
+      <p class="text-xs text-on-surface-variant mt-1.5 ml-1">Format : exemple@domaine.com</p>
+    </div>
+
+    <!-- Champ mot de passe requis uniquement si l'email change -->
+    <div id="bloc-mdp-email" class="hidden">
+      <label class="field-label" for="field-mdp-email">Mot de passe actuel <span class="normal-case font-normal" style="color:#ba1a1a;">— requis pour changer l'email</span></label>
+      <div class="relative">
+        <input class="field-input pr-12" id="field-mdp-email" type="password" placeholder="Votre mot de passe actuel" autocomplete="new-password"/>
+        <button type="button" onclick="togglePassword('field-mdp-email', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center">
+          <span class="material-symbols-outlined" style="font-size:20px;">visibility_off</span>
+        </button>
+      </div>
+      <p class="text-xs text-on-surface-variant mt-1.5 ml-1">Un email de vérification sera envoyé à la nouvelle adresse</p>
     </div>
     <!-- Numéro de contact — champ supplémentaire pour le livreur -->
     <div>
@@ -102,7 +116,7 @@
     <div>
       <label class="field-label" for="field-mdp-ancien">Mot de passe actuel</label>
       <div class="relative">
-        <input class="field-input pr-12" id="field-mdp-ancien" type="password" placeholder="••••••••"/>
+        <input class="field-input pr-12" id="field-mdp-ancien" type="password" placeholder="••••••••" autocomplete="new-password"/>
         <button type="button" onclick="togglePassword('field-mdp-ancien', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center">
           <span class="material-symbols-outlined" style="font-size:20px;">visibility_off</span>
         </button>
@@ -111,20 +125,22 @@
     <div>
       <label class="field-label" for="field-mdp-nouveau">Nouveau mot de passe</label>
       <div class="relative">
-        <input class="field-input pr-12" id="field-mdp-nouveau" type="password" placeholder="••••••••"/>
+        <input class="field-input pr-12" id="field-mdp-nouveau" type="password" placeholder="••••••••" autocomplete="new-password"/>
         <button type="button" onclick="togglePassword('field-mdp-nouveau', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center">
           <span class="material-symbols-outlined" style="font-size:20px;">visibility_off</span>
         </button>
       </div>
+      <p class="text-xs text-on-surface-variant mt-1.5 ml-1">Au moins 6 caractères</p>
     </div>
     <div>
       <label class="field-label" for="field-mdp-confirm">Confirmer le nouveau mot de passe</label>
       <div class="relative">
-        <input class="field-input pr-12" id="field-mdp-confirm" type="password" placeholder="••••••••"/>
+        <input class="field-input pr-12" id="field-mdp-confirm" type="password" placeholder="••••••••" autocomplete="new-password"/>
         <button type="button" onclick="togglePassword('field-mdp-confirm', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center">
           <span class="material-symbols-outlined" style="font-size:20px;">visibility_off</span>
         </button>
       </div>
+      <p class="text-xs text-on-surface-variant mt-1.5 ml-1">Doit être identique au nouveau mot de passe</p>
     </div>
 
     <p id="err-mdp" class="msg-err"></p>
@@ -143,23 +159,41 @@ import { getProfil } from '../../controllers/livreurController.js';
 import { getCurrentUser } from '../../services/authService.js';
 
 let livreurId = null;
+let _emailOriginal = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('field-mdp-ancien').value = '';
+  document.getElementById('field-mdp-nouveau').value = '';
+  document.getElementById('field-mdp-confirm').value = '';
+  document.getElementById('field-mdp-email').value = '';
   // await protegerPage('livreur'); // BYPASS TEST
   try {
     const user  = await getCurrentUser();
     if (user?.uid) livreurId = user.uid;
     const profil = await getProfil(livreurId);
     document.getElementById('field-nom').value       = profil.nomComplet || '';
-    document.getElementById('field-email').value     = profil.email || '';
+    // Afficher emailEnAttente (nouvel email) si présent, sinon email actuel
+    const emailAffiche = profil.emailEnAttente || profil.email || '';
+    document.getElementById('field-email').value = emailAffiche;
+    _emailOriginal = emailAffiche;
+    // _emailOriginal = valeur affichée → onEmailChange ne montrera pas le bloc mdp
     document.getElementById('field-telephone').value = profil.telephoneContact || '';
     
-    // Pré-remplir l'ancien mot de passe (soit depuis le profil si présent en test, soit '123456' par défaut)
-    document.getElementById('field-mdp-ancien').value = profil.motDePasse || '123456';
   } catch(e) { console.error('[modifier-profil-livreur]', e); }
   document.getElementById('skeleton').classList.add('hidden');
   document.getElementById('form-content').classList.remove('hidden');
 });
+
+window.onEmailChange = () => {
+  const emailActuel = document.getElementById('field-email').value.trim();
+  const bloc = document.getElementById('bloc-mdp-email');
+  if (emailActuel !== _emailOriginal) {
+    bloc.classList.remove('hidden');
+  } else {
+    bloc.classList.add('hidden');
+    document.getElementById('field-mdp-email').value = '';
+  }
+};
 
 window.sauvegarderInfos = async () => {
   const nom       = document.getElementById('field-nom').value.trim();
@@ -171,15 +205,25 @@ window.sauvegarderInfos = async () => {
   if (!email || !email.includes('@')) { _showErr('err-infos', 'Email invalide'); return; }
   if (!telephone) { _showErr('err-infos', 'Le numéro de contact est obligatoire'); return; }
 
+  const emailChange = email !== _emailOriginal;
+  if (emailChange) {
+    const mdpEmail = document.getElementById('field-mdp-email').value;
+    if (!mdpEmail) { _showErr('err-infos', "Veuillez saisir votre mot de passe actuel pour changer l'email"); return; }
+  }
+
   const btn = document.getElementById('btn-sauvegarder');
   btn.disabled = true; btn.textContent = 'Enregistrement…';
   try {
-    // Modifier nom + email via authService (même logique que modifier-profil-client)
-    const resInfo = await handleModifierProfil(livreurId, { nomComplet: nom, email });
-    // Modifier téléphone via authService (champ telephoneContact)
+    const mdpEmail = emailChange ? document.getElementById('field-mdp-email').value : null;
+    const resInfo = await handleModifierProfil(livreurId, { nomComplet: nom, email, motDePasseActuel: mdpEmail });
     const resTel  = await handleModifierProfil(livreurId, { telephoneContact: telephone });
-    if (resInfo?.success !== false && resTel?.success !== false) {
+    if (resInfo?.emailChange) {
+      // Redirigé vers /verification par handleModifierProfil
+    } else if (resInfo?.success !== false && resTel?.success !== false) {
       document.getElementById('ok-infos').style.display = 'block';
+      _emailOriginal = email;
+      document.getElementById('bloc-mdp-email').classList.add('hidden');
+      document.getElementById('field-mdp-email').value = '';
     } else {
       _showErr('err-infos', resInfo?.message || resTel?.message || 'Erreur');
     }

@@ -154,14 +154,14 @@ function _genererPointsCollecte(sourcePreferee) {
  *   message: string
  * }>}
  */
-async function creerCommande(clientId, panier, adresse, modePaiement, preferences = {}) {
+async function creerCommande(clientId, panierInfos, adresse, modePaiement, preferences = {}) {
   try {
     // ── Validation ────────────────────────────────────────────────────────
     if (!clientId || typeof clientId !== "string") {
       return { success: false, commandeId: null, commande: null, message: "Identifiant client invalide." };
     }
-
-    if (!Array.isArray(panier) || panier.length === 0) {
+    
+    if (!panierInfos || !Array.isArray(panierInfos.ingredients) || panierInfos.ingredients.length === 0) {
       return { success: false, commandeId: null, commande: null, message: "Le panier est vide ou invalide." };
     }
 
@@ -183,12 +183,9 @@ async function creerCommande(clientId, panier, adresse, modePaiement, preference
     }
 
     // ── Calculs financiers ─────────────────────────────────────────────────
-    const sousTotal = Math.round(
-      panier.reduce((acc, ing) => acc + (ing.prixTotal ?? 0), 0) * 100
-    ) / 100;
-
-    const { fraisLivraison } = await calculerFraisLivraison(adresse, preferences);
-    const totalFinal = Math.round((sousTotal + fraisLivraison) * 100) / 100;
+    const sousTotal = panierInfos.sousTotal ?? 0;
+    const fraisLivraison = panierInfos.fraisLivraison ?? 0;
+    const totalFinal = panierInfos.total ?? (sousTotal + fraisLivraison);
 
     // ── Temps estimé ───────────────────────────────────────────────────────
     const { tempsEstime } = await calculerTempsEstime(preferences);
@@ -204,7 +201,11 @@ async function creerCommande(clientId, panier, adresse, modePaiement, preference
       clientId,
       statut:         "commande_passee",
       dateCreation:   new Date().toISOString(),
-      panier,
+      recetteId:      panierInfos.recetteId ?? '',
+      recetteTitre:   panierInfos.recetteTitre ?? '',
+      categorie:      panierInfos.categorie ?? '',
+      image:          panierInfos.image ?? '',
+      panier:         panierInfos.ingredients,
       adresseLivraison: {
         adresse:   adresse.adresse.trim(),
         ville:     adresse.ville.trim(),
@@ -220,7 +221,7 @@ async function creerCommande(clientId, panier, adresse, modePaiement, preference
       livreurNom:     "",
       livreurTelephone: "",
       archivee:       false,
-      nbIngredients:  panier.length,
+      nbIngredients:  panierInfos.ingredients.length,
       sourcePreferee: preferences.sourcePreferee ?? "",
     };
 

@@ -312,6 +312,15 @@ function afficherTout(recettes) {
 
 afficherTout(toutesRecettes);
 
+const TITRES_PAYS = {
+  japonais: 'Cuisine japonaise',
+  chinois: 'Cuisine chinoise',
+  coréen: 'Cuisine coréenne',
+  coreen: 'Cuisine coréenne',
+  vietnamien: 'Cuisine vietnamienne',
+  indien: 'Cuisine indienne',
+};
+
 // ─── Filtre par pays ──────────────────────────────────────────────────────────
 window.filtrerPays = function(pays) {
   payActif = pays;
@@ -320,7 +329,7 @@ window.filtrerPays = function(pays) {
   const titre = document.getElementById('section-title');
   titre.textContent = pays === 'tous'
     ? 'Plats asiatiques populaires'
-    : `Cuisine ${pays.toLowerCase()}`;
+    : (TITRES_PAYS[pays.toLowerCase()] || `Cuisine ${pays.toLowerCase()}`);
 
   // Filtrer
   const filtered = pays === 'tous'

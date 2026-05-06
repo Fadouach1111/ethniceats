@@ -168,6 +168,8 @@ export async function initialiserPanier(recette, nbPortions, preferences) {
     const panier = {
       recetteId:    recette.id,
       recetteTitre: recette.titre,
+      categorie:    recette.categorie ?? '',
+      image:        recette.image ?? '',
       nbPortions,
       preferences: {
         sourcePreferee,
@@ -301,7 +303,9 @@ export async function sauvegarderPanier(panier) {
     if (!panier || typeof panier !== 'object') {
       throw new Error('sauvegarderPanier : panier invalide.');
     }
-    localStorage.setItem(PANIER_KEY, JSON.stringify(panier));
+    const panierNormalise = _normaliserPanierAvantSauvegarde(panier);
+    Object.assign(panier, panierNormalise);
+    localStorage.setItem(PANIER_KEY, JSON.stringify(panierNormalise));
   } catch (error) {
     console.error('[panierController] sauvegarderPanier :', error);
     throw error;
@@ -508,6 +512,8 @@ export async function getPanierPourCheckout() {
     return {
       recetteId:    panier.recetteId,
       recetteTitre: panier.recetteTitre,
+      categorie:    panier.categorie,
+      image:        panier.image,
       nbPortions:   panier.nbPortions,
       ingredients:  panier.ingredients.map(ing => ({ ...ing })),
       sousTotal:    panier.sousTotal,
@@ -538,4 +544,44 @@ function _recalculerTotaux(panier) {
   const stArrondi = Math.round(sousTotal * 100) / 100;
   const total     = Math.round((stArrondi + (panier.fraisLivraison ?? 0)) * 100) / 100;
   return { sousTotal: stArrondi, total };
+}
+
+function _normaliserPanierAvantSauvegarde(panier) {
+  const sourcePreferee = panier.preferences?.sourcePreferee ?? 'mix';
+  const ingredients = Array.isArray(panier.ingredients) ? panier.ingredients : [];
+
+  const ingredientsNormalises = ingredients.map((ing) => {
+    const prixUnitaireExistant = Number(ing.prixUnitaire ?? 0) || 0;
+    const prixUnitaireCalcule = _prixUnitaire(ing, sourcePreferee);
+    const prixUnitaire = prixUnitaireExistant > 0 ? prixUnitaireExistant : prixUnitaireCalcule;
+
+    const ingredientNormalise = {
+      ...ing,
+      quantiteRecette: Number(ing.quantiteRecette ?? ing.quantite ?? 0) || 0,
+      quantitePanier: ing.type === 'pack'
+        ? Math.max(1, Math.ceil(Number(ing.quantitePanier ?? 1) || 1))
+        : (Number(ing.quantiteRecette ?? ing.quantite ?? 0) || 0),
+      prixUnitaire: Math.round(prixUnitaire * 100000) / 100000,
+    };
+
+    ingredientNormalise.prixTotal = _prixTotalIngredient(ingredientNormalise);
+    return ingredientNormalise;
+  });
+
+  const panierNormalise = {
+    ...panier,
+    preferences: {
+      sourcePreferee,
+      priorite: panier.preferences?.priorite ?? '',
+      budgetMax: panier.preferences?.budgetMax ?? 0,
+    },
+    ingredients: ingredientsNormalises,
+    fraisLivraison: _fraisLivraison(sourcePreferee),
+  };
+
+  const { sousTotal, total } = _recalculerTotaux(panierNormalise);
+  panierNormalise.sousTotal = sousTotal;
+  panierNormalise.total = total;
+
+  return panierNormalise;
 }

@@ -73,12 +73,29 @@
         <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Nom complet</label>
         <input id="field-nom" type="text" placeholder="Votre nom complet"
           class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 text-sm font-medium placeholder:text-outline placeholder:font-normal"/>
+        <p class="text-xs text-on-surface-variant mt-1 ml-1">Au moins 2 caractères</p>
       </div>
       <div class="space-y-1.5">
         <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Email</label>
         <input id="field-email" type="email" placeholder="votre@email.com"
-          class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 text-sm font-medium placeholder:text-outline placeholder:font-normal"/>
+          class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 text-sm font-medium placeholder:text-outline placeholder:font-normal"
+          oninput="onEmailChange()"/>
+        <p class="text-xs text-on-surface-variant mt-1 ml-1">Format : exemple@domaine.com</p>
       </div>
+
+      <!-- Champ mot de passe requis uniquement si l'email change -->
+      <div id="bloc-mdp-email" class="hidden space-y-1.5">
+        <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Mot de passe actuel <span class="normal-case font-normal text-error">— requis pour changer l'email</span></label>
+        <div class="relative">
+          <input id="field-mdp-email" type="password" placeholder="Votre mot de passe actuel" autocomplete="new-password"
+            class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 pr-12 text-sm font-medium placeholder:text-outline"/>
+          <button type="button" onclick="toggleVisi('field-mdp-email','eye-email')" class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+            <span id="eye-email" class="material-symbols-outlined text-xl">visibility_off</span>
+          </button>
+        </div>
+        <p class="text-xs text-on-surface-variant mt-1 ml-1">Un email de vérification sera envoyé à la nouvelle adresse</p>
+      </div>
+
       <p id="err-infos" class="hidden text-error text-xs flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">error</span><span id="err-infos-msg"></span></p>
       <p id="ok-infos" class="hidden text-green-700 text-xs flex items-center gap-1"><span class="material-symbols-outlined text-[14px]" style="font-variation-settings:'FILL' 1">check_circle</span>Modifications enregistrées</p>
     </section>
@@ -95,7 +112,7 @@
       <div class="space-y-1.5">
         <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Ancien mot de passe</label>
         <div class="relative">
-          <input id="field-mdp-ancien" type="password" placeholder="••••••••"
+          <input id="field-mdp-ancien" type="password" placeholder="••••••••" autocomplete="new-password"
             class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 pr-12 text-sm font-medium placeholder:text-outline"/>
           <button type="button" onclick="toggleVisi('field-mdp-ancien','eye1')" class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
             <span id="eye1" class="material-symbols-outlined text-xl">visibility_off</span>
@@ -105,22 +122,24 @@
       <div class="space-y-1.5">
         <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Nouveau mot de passe</label>
         <div class="relative">
-          <input id="field-mdp-new" type="password" placeholder="••••••••"
+          <input id="field-mdp-new" type="password" placeholder="••••••••" autocomplete="new-password"
             class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 pr-12 text-sm font-medium placeholder:text-outline"/>
           <button type="button" onclick="toggleVisi('field-mdp-new','eye2')" class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
             <span id="eye2" class="material-symbols-outlined text-xl">visibility_off</span>
           </button>
         </div>
+        <p class="text-xs text-on-surface-variant mt-1 ml-1">Au moins 6 caractères</p>
       </div>
       <div class="space-y-1.5">
         <label class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Confirmer le mot de passe</label>
         <div class="relative">
-          <input id="field-mdp-confirm" type="password" placeholder="••••••••"
+          <input id="field-mdp-confirm" type="password" placeholder="••••••••" autocomplete="new-password"
             class="field-input w-full bg-surface-container-low border border-transparent rounded-xl px-4 py-3.5 pr-12 text-sm font-medium placeholder:text-outline"/>
           <button type="button" onclick="toggleVisi('field-mdp-confirm','eye3')" class="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
             <span id="eye3" class="material-symbols-outlined text-xl">visibility_off</span>
           </button>
         </div>
+        <p class="text-xs text-on-surface-variant mt-1 ml-1">Doit être identique au nouveau mot de passe</p>
       </div>
       <p id="err-mdp" class="hidden text-error text-xs flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">error</span><span id="err-mdp-msg"></span></p>
       <p id="ok-mdp" class="hidden text-green-700 text-xs flex items-center gap-1"><span class="material-symbols-outlined text-[14px]" style="font-variation-settings:'FILL' 1">check_circle</span>Mot de passe modifié</p>
@@ -149,19 +168,42 @@ import { getProfil } from '../../controllers/clientController.js';
 import { getCurrentUser } from '../../services/authService.js';
 
 let clientId = 'client_anonymous';
+let _emailOriginal = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // const utilisateur = // await protegerPage('client'); // BYPASS TEST // BYPASS TEST
-  if (!utilisateur) return;
-  if (utilisateur?.uid) clientId = utilisateur.uid;
+  document.getElementById('field-mdp-ancien').value = '';
+  document.getElementById('field-mdp-new').value = '';
+  document.getElementById('field-mdp-confirm').value = '';
+  document.getElementById('field-mdp-email').value = '';
+  try {
+    const utilisateur = await getCurrentUser();
+    if (utilisateur && utilisateur.uid) clientId = utilisateur.uid;
+  } catch(e) {}
   try {
     const result = await getProfil(clientId);
     if (result.success && result.profil) {
       document.getElementById('field-nom').value = result.profil.nomComplet || result.profil.nom || result.profil.displayName || '';
-      document.getElementById('field-email').value = result.profil.email || '';
+      // Afficher emailEnAttente (nouvel email) si présent, sinon email actuel
+      const emailAffiche = result.profil.emailEnAttente || result.profil.email || '';
+      document.getElementById('field-email').value = emailAffiche;
+      _emailOriginal = emailAffiche;
+      // Réinitialiser le champ email : l'email affiché EST le dernier connu
+      // donc pas besoin de mot de passe pour "changer" vers la même valeur
+      // On remet _emailOriginal à la valeur affichée pour éviter faux positif
     }
   } catch(e) { console.error('[modifier-profil]', e); }
 });
+
+window.onEmailChange = () => {
+  const emailActuel = document.getElementById('field-email').value.trim();
+  const bloc = document.getElementById('bloc-mdp-email');
+  if (emailActuel !== _emailOriginal) {
+    bloc.classList.remove('hidden');
+  } else {
+    bloc.classList.add('hidden');
+    document.getElementById('field-mdp-email').value = '';
+  }
+};
 
 window.sauvegarderInfos = async () => {
   const nom   = document.getElementById('field-nom').value.trim();
@@ -169,12 +211,28 @@ window.sauvegarderInfos = async () => {
   _hideMsg('err-infos'); _hideMsg('ok-infos');
   if (!nom || !email) { _showErr('err-infos','err-infos-msg','Veuillez remplir tous les champs'); return; }
   if (!email.includes('@')) { _showErr('err-infos','err-infos-msg','Email invalide'); return; }
+
+  // Si email change, exiger mot de passe actuel
+  const emailChange = email !== _emailOriginal;
+  if (emailChange) {
+    const mdpEmail = document.getElementById('field-mdp-email').value;
+    if (!mdpEmail) { _showErr('err-infos','err-infos-msg',"Veuillez saisir votre mot de passe actuel pour changer l'email"); return; }
+  }
+
   const btn = document.getElementById('btn-sauvegarder');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
   try {
-    const result = await handleModifierProfil(clientId, { nomComplet: nom, email });
+    const mdpEmail = emailChange ? document.getElementById('field-mdp-email').value : null;
+    const result = await handleModifierProfil(clientId, { nomComplet: nom, email, motDePasseActuel: mdpEmail });
     if (result?.success === true) {
-      document.getElementById('ok-infos').classList.remove('hidden');
+      if (result?.emailChange) {
+        // Redirigé vers /verification par handleModifierProfil
+      } else {
+        document.getElementById('ok-infos').classList.remove('hidden');
+        _emailOriginal = email;
+        document.getElementById('bloc-mdp-email').classList.add('hidden');
+        document.getElementById('field-mdp-email').value = '';
+      }
     } else {
       _showErr('err-infos','err-infos-msg', result?.message || 'Erreur');
     }

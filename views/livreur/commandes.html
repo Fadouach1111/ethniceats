@@ -70,11 +70,6 @@
   <a href="/livreur/commandes" class="sidebar-item active flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">receipt_long</span>Commandes</a>
   <a href="/livreur/en-cours" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">local_shipping</span>En cours</a>
   <a href="/livreur/profil" class="sidebar-item flex items-center gap-3 w-full px-4 py-3"><span class="material-symbols-outlined">person</span>Profil</a>
-  <div class="mt-auto w-full">
-    <button onclick="confirmerDeconnexion()" class="sidebar-item flex items-center gap-3 w-full px-4 py-3 text-error hover:text-error">
-      <span class="material-symbols-outlined">logout</span>Déconnexion
-    </button>
-  </div>
 </nav>
 
 <!-- MAIN -->
@@ -136,24 +131,34 @@
 import { getCurrentUser }    from '../../services/authService.js';
 import { protegerPage }      from '../../controllers/authController.js';
 import {
-  getCommandesDisponibles,
-  ecouterNouvellesCommandesLivreur,
-  stopperEcouteCommandes,
+  ecouterCommandesDisponibles,
   accepterCommande,
   getStats,
 } from '../../controllers/livreurController.js';
 
-let livreurId = null;
-let _refListener = null;
+let livreurId    = null;
+let _unsubscribe = null; // fonction pour arrêter l'écoute Firestore onSnapshot
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // await protegerPage('livreur'); // BYPASS TEST
+  await protegerPage('livreur');
   try {
     const user = await getCurrentUser();
     livreurId = user?.uid || null;
+    if (!livreurId) {
+      window.location.href = '/auth/choix-role';
+      return;
+    }
     const prenom = user?.nomComplet?.split(' ')[0] ?? 'livreur';
     document.getElementById('greeting').textContent = `Bonjour, ${prenom} 👋`;
   } catch(e) {}
+
+  if (!livreurId) {
+    document.getElementById('stats-skeleton').classList.add('hidden');
+    document.getElementById('skeleton-orders').classList.add('hidden');
+    document.getElementById('empty-state').classList.remove('hidden');
+    document.getElementById('empty-state').classList.add('flex');
+    return;
+  }
 
   // Stats
   try {
@@ -182,44 +187,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('stats-skeleton').classList.add('hidden');
   }
 
-  await chargerCommandes();
-
-  // Écoute temps réel des nouvelles commandes
-  _refListener = ecouterNouvellesCommandesLivreur(async (_ids, err) => {
-    if (!err) await chargerCommandes();
+  // Écoute temps réel Firestore onSnapshot :
+  // la liste se met à jour automatiquement dès qu'une commande est acceptée
+  // par n'importe quel livreur, sans rechargement de page.
+  _unsubscribe = ecouterCommandesDisponibles((commandes, erreur) => {
+    afficherCommandes(commandes, erreur);
   });
 });
 
-window.addEventListener('beforeunload', () => { if (_refListener) stopperEcouteCommandes(_refListener); });
+window.addEventListener('beforeunload', () => {
+  if (typeof _unsubscribe === 'function') _unsubscribe();
+});
 
-async function chargerCommandes() {
+function afficherCommandes(commandes, erreur) {
   const sk    = document.getElementById('skeleton-orders');
   const list  = document.getElementById('orders-list');
   const empty = document.getElementById('empty-state');
   const badge = document.getElementById('badge-nb');
 
-  try {
-    const commandes = await getCommandesDisponibles();
-    commandes.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation));
-    sk.classList.add('hidden');
+  sk.classList.add('hidden');
 
-    if (!commandes.length) {
-      list.classList.add('hidden'); list.classList.remove('flex');
-      empty.classList.remove('hidden'); empty.classList.add('flex');
-      badge.classList.add('hidden');
-      return;
-    }
-    empty.classList.add('hidden'); empty.classList.remove('flex');
-    list.classList.remove('hidden'); list.classList.add('flex');
-    list.innerHTML = '';
-    commandes.forEach(c => list.appendChild(buildCard(c)));
-    badge.textContent = `${commandes.length} en attente`;
-    badge.classList.remove('hidden');
-  } catch(e) {
-    sk.classList.add('hidden');
+  if (erreur) {
     empty.classList.remove('hidden'); empty.classList.add('flex');
-    console.error('[commandes]', e);
+    console.error('[commandes]', erreur);
+    return;
   }
+
+  if (!commandes.length) {
+    list.classList.add('hidden'); list.classList.remove('flex');
+    empty.classList.remove('hidden'); empty.classList.add('flex');
+    badge.classList.add('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden'); empty.classList.remove('flex');
+  list.classList.remove('hidden'); list.classList.add('flex');
+  list.innerHTML = '';
+  commandes.forEach(c => list.appendChild(buildCard(c)));
+  badge.textContent = `${commandes.length} en attente`;
+  badge.classList.remove('hidden');
 }
 
 function fmtDate(iso) {
@@ -272,10 +278,10 @@ function buildCard(cmd) {
         <span class="material-symbols-outlined" style="font-size:18px;">location_on</span>
         <span class="truncate">${adr}</span>
       </div>
-      <div class="flex items-center gap-2 text-sm text-on-surface font-semibold">
+      <a href="tel:${tel}" class="flex items-center gap-2 text-sm text-on-surface font-semibold hover:text-primary transition-colors">
         <span class="material-symbols-outlined" style="font-size:18px;">phone</span>
         <span>${tel}</span>
-      </div>
+      </a>
     </div>
     <!-- Buttons -->
     <div class="flex gap-2">
@@ -295,7 +301,10 @@ function buildCard(cmd) {
       <!-- Ingrédients -->
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Ingrédients</p>
       <div class="flex flex-col gap-1 mb-4">
-        ${(cmd.panier || []).map(i => `<p class="text-sm text-on-surface">${i.nom} <span class="text-on-surface-variant">— ${i.quantite} ${i.unite || ''}</span></p>`).join('')}
+        ${(cmd.panier || []).map(i => {
+           let qteInfos = i.type === 'pack' ? `${i.quantitePanier ?? i.quantiteRecette ?? 1} pack(s)` : `${i.quantiteRecette ?? i.quantite ?? ''} ${i.unite || ''}`;
+           return `<p class="text-sm text-on-surface">${i.nom} <span class="text-on-surface-variant">— ${qteInfos}</span></p>`;
+        }).join('')}
       </div>
       <!-- Points de collecte -->
       ${(cmd.pointsCollecte || []).length ? `
@@ -316,7 +325,7 @@ function buildCard(cmd) {
       </div>
       <!-- Adresse complète -->
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mt-3 mb-1">Adresse complète</p>
-      <p class="text-sm text-on-surface italic">${cmd.adresseLivraison?.adresse || ''}, ${cmd.adresseLivraison?.ville || ''}</p>
+      <p class="text-sm text-on-surface">${cmd.adresseLivraison?.adresse || ''}, ${cmd.adresseLivraison?.ville || ''}</p>
     </div>
   </div>`;
 

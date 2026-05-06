@@ -42,7 +42,7 @@ const SESSION_KEYS = {
 
 /** Pages de redirection selon le contexte */
 const ROUTES = {
-  choixRole:      "/",
+  choixRole:      "/auth/choix-role",
   connexion:      "/login",
   verification:   "/verification",
   preferences:    "/preferences",
@@ -447,7 +447,13 @@ async function protegerPage(roleRequis) {
       return null;
     }
 
-    // Cas 4 : Tout est correct — on retourne l'utilisateur à la vue
+    // Cas 4 : Client avec préférences non définies — renvoyer vers preferences.html
+    if (roleRequis === "client" && utilisateur.profil?.preferencesDefinies === false) {
+      _rediriger(ROUTES.preferences + "?from=inscription");
+      return null;
+    }
+
+    // Cas 5 : Tout est correct — on retourne l'utilisateur à la vue
     return utilisateur;
 
   } catch (error) {

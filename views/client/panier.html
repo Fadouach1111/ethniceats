@@ -129,7 +129,7 @@
   <!-- Header -->
   <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md px-5 pt-6 pb-3 lg:px-10 lg:pt-8 lg:pb-4">
     <div class="flex items-center gap-3">
-      <button onclick="history.back()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-primary flex-shrink-0">
+      <button onclick="window.location.href='/accueil'" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-primary flex-shrink-0">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
       <h1 id="page-title" class="font-headline text-3xl lg:text-4xl text-primary font-bold leading-tight">Mon panier</h1>
@@ -291,7 +291,7 @@ function renderIngredients() {
     card.dataset.nom = ing.nom;
 
     // Prix affiché
-    const prixAffiche = _prixIngredient(ing);
+    const prixAffiche = ing.prixTotal ?? 0;
 
     // Quantité affichée
     const qteAffichee = ing.type === 'pack'
@@ -340,23 +340,7 @@ function renderIngredients() {
   });
 }
 
-// ===== PRIX =====
-function _prixIngredient(ing) {
-  // Si le panier provient du panierController, `prixUnitaire` est déjà calculé
-  // selon les préférences. Sinon, fallback sur l'ancien calcul.
-  let prix;
-  if (ing.prixUnitaire != null) {
-    prix = ing.prixUnitaire;
-  } else {
-    const source = preferences.sourcePreferee || 'mix';
-    if (source === 'souk') prix = ing.prixSouk ?? ing.prix ?? 0;
-    else if (source === 'supermarche') prix = ing.prixSupermarche ?? ing.prix ?? 0;
-    else prix = ((ing.prixSouk ?? ing.prix ?? 0) + (ing.prixSupermarche ?? ing.prix ?? 0)) / 2;
-  }
 
-  if (ing.type === 'pack') return Math.round((ing.quantitePanier ?? 1) * prix);
-  return Math.round((ing.quantiteRecette ?? 0) * prix);
-}
 
 function _peutDiminuer(ing) {
   if (ing.type === 'pack') return (ing.quantitePanier ?? 1) > 1;
@@ -365,12 +349,7 @@ function _peutDiminuer(ing) {
 
 async function updateTotal() {
   if (!panierData) return;
-  let total = 0;
-  (panierData.ingredients || []).forEach(ing => { total += _prixIngredient(ing); });
-  // Frais livraison
-  const source = preferences.sourcePreferee || 'mix';
-  const frais = source === 'souk' ? 15 : source === 'supermarche' ? 20 : 17;
-  document.getElementById('prix-total').textContent = `${total} MAD`;
+  document.getElementById('prix-total').textContent = `${panierData.sousTotal ?? 0} MAD`;
 }
 
 // ===== SUPPRIMER =====

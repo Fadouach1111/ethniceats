@@ -39,6 +39,10 @@ def _abs(*parts: str) -> str:
 
 
 @app.route("/", methods=["GET"])
+@app.route("/choix-role", methods=["GET"])
+@app.route("/choix-role.html", methods=["GET"])
+@app.route("/auth/choix-role", methods=["GET"])
+@app.route("/auth/choix-role.html", methods=["GET"])
 def index():
     """Sert la page d'accueil du frontend."""
     return send_from_directory(_abs("views", "auth"), "choix-role.html")
@@ -68,8 +72,14 @@ def verification_page():
 @app.route("/preferences.html", methods=["GET"])
 @app.route("/preferences", methods=["GET"])
 def preferences_page():
-    """Sert la page des preferences initiales."""
+    """Sert la page des preferences initiales (onboarding après inscription)."""
     return send_from_directory(_abs("views", "auth"), "preferences.html")
+
+@app.route("/modifier-preferences.html", methods=["GET"])
+@app.route("/modifier-preferences", methods=["GET"])
+def modifier_preferences_page():
+    """Sert la page de modification des préférences depuis le profil client."""
+    return send_from_directory(_abs("views", "client"), "modifier-preferences.html")
 
 
 @app.route("/forgotpassword", methods=["GET"])
@@ -395,5 +405,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_ENV") != "production"
     app.run(host="0.0.0.0", port=port, debug=debug)
-
 
