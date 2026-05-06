@@ -332,6 +332,14 @@
       return null;
     }
 
+    function enregistrerPreferencesLocales(preferences) {
+      try {
+        localStorage.setItem("ethniceats_preferences", JSON.stringify(preferences));
+      } catch (err) {
+        console.error("[preferences.html] enregistrerPreferencesLocales", err);
+      }
+    }
+
     async function chargerPreferencesExistantes() {
       try {
         const utilisateur = await getCurrentUser();
@@ -342,8 +350,17 @@
 
         const { budgetMax, sourcePreferee, priorite } = resultat.preferences;
         activerOption("source", sourcePreferee);
-        activerOption("budget", budgetMaxToLabel(budgetMax));
+        const budgetLabel = budgetMaxToLabel(budgetMax);
+        activerOption("budget", budgetLabel);
         activerOption("priorite", priorite);
+
+        if (budgetLabel) {
+          enregistrerPreferencesLocales({
+            sourcePreferee,
+            budget: budgetLabel,
+            priorite,
+          });
+        }
       } catch (err) {
         console.error("[preferences.html] chargerPreferencesExistantes", err);
       }
@@ -414,6 +431,11 @@
         });
 
         if (résultat.success) {
+          enregistrerPreferencesLocales({
+            sourcePreferee,
+            budget: budgetLabel,
+            priorite,
+          });
           okGlobal.classList.remove('hidden');
           setTimeout(() => { window.location.href = '/accueil'; }, 1500);
         } else {
