@@ -448,11 +448,10 @@
 
       setLoading(false);
 
-      if (résultat.success) {
-        window.location.href = "/verification";
-      } else {
+      if (!résultat.success) {
         showGlobalError(résultat.message || "Une erreur est survenue. Veuillez réessayer.");
       }
+      // En cas de succès, la redirection est gérée par authService.js
     });
 
     // ── Clear errors on input ─────────────────────────────────────────────────

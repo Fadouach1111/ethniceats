@@ -433,13 +433,16 @@ async function protegerPage(roleRequis) {
       return null;
     }
 
-    // Cas 2 : Email non vérifié — renvoyer vers verification.html
+    // Cas 2 : L'obligation de vérification email a été retirée
+    // Commenté pour bypasser l'écran de vérification.
+    /*
     if (!utilisateur.emailVerifie) {
       sessionStorage.setItem(SESSION_KEYS.rolePending, utilisateur.role);
       sessionStorage.setItem(SESSION_KEYS.uidPending,  utilisateur.uid);
       _rediriger(ROUTES.verification);
       return null;
     }
+    */
 
     // Cas 3 : Mauvais rôle — redirection vers la bonne interface
     if (utilisateur.role !== roleRequis) {

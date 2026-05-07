@@ -149,8 +149,8 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
     const userCredential = await createUserWithEmailAndPassword(auth, email, motDePasse);
     const user = userCredential.user;
 
-    // ── Envoi de l'email de vérification (OTP) ────────────────────────────
-    await _sendEmailVerification(user);
+    // ── L'envoi de l'email de vérification a été retiré (OTP) ─────────────
+    // await _sendEmailVerification(user);
 
     // ── Construction du profil Firestore ──────────────────────────────────
     const profil = {
@@ -158,7 +158,7 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
       nomComplet: nomComplet.trim(),
       email:      email.trim().toLowerCase(),
       role,
-      emailVerifie: false,
+      emailVerifie: true, // Bypass vérification
       creeLe:     serverTimestamp(),
     };
 
@@ -182,16 +182,16 @@ async function register(nomComplet, email, motDePasse, role, numeroContact = nul
     // Persistance Firestore (uid comme clé de document)
     await setDoc(doc(db, USERS_COLLECTION, user.uid), profil);
 
-    // ── Redirection vers l'écran de vérification ──────────────────────────
-    // On stocke temporairement le rôle pour que la page de vérification
-    // sache où rediriger l'utilisateur après validation.
-    sessionStorage.setItem("ee_role_pending", role);
-    sessionStorage.setItem("ee_uid_pending",  user.uid);
-    sessionStorage.setItem("ee_email_pending", user.email || email.trim().toLowerCase());
+    // ── Redirection directe (sans vérification) ───────────────────────────
+    let destination;
+    if (role === "client") {
+      destination = "/preferences?from=inscription";
+    } else {
+      destination = REDIRECT.livreur;
+    }
+    _rediriger(destination);
 
-    _rediriger(REDIRECT.verification);
-
-    return { success: true, uid: user.uid, message: "Compte créé. Vérifiez votre email." };
+    return { success: true, uid: user.uid, message: "Compte créé." };
 
   } catch (error) {
     // Traduction des codes d'erreur Firebase les plus courants
@@ -221,7 +221,8 @@ async function login(email, motDePasse) {
     const userCredential = await signInWithEmailAndPassword(auth, email, motDePasse);
     const user = userCredential.user;
 
-    // ── Vérification email obligatoire ────────────────────────────────────
+    // ── L'obligation de vérification email a été retirée ────────────────
+    /*
     if (!user.emailVerified) {
       // Renvoyer l'email de vérification si nécessaire
       await _sendEmailVerification(user);
@@ -233,6 +234,7 @@ async function login(email, motDePasse) {
           "Votre email n'est pas encore vérifié. Un nouveau lien de vérification vient d'être envoyé.",
       };
     }
+    */
 
     // ── Récupération du profil Firestore ──────────────────────────────────
     const profil = await _getProfilFirestore(user.uid);
@@ -569,7 +571,7 @@ async function getCurrentUser() {
           email:        user.email,
           role:         profil.role,
           nomComplet:   profil.nomComplet,
-          emailVerifie: user.emailVerified,
+          emailVerifie: profil.emailVerifie !== false, // Considère vérifié si profil le dit, ou par défaut vrai
           profil,        // profil Firestore complet (pour les contrôleurs)
         });
       } catch (err) {
