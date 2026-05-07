@@ -280,11 +280,12 @@ function renderIngredients() {
     card.style.animationDelay = `${idx * 40}ms`;
     card.dataset.nom = ing.nom;
 
-    const prixAffiche = typeof ing.prixTotal === 'number' ? Math.round(ing.prixTotal * 100) / 100 : _prixIngredient(ing);
+    const prixAffiche = _prixIngredient(ing);
 
-    const qteAffichee = ing.type === 'pack'
-      ? `${ing.quantitePanier} pack${ing.quantitePanier > 1 ? 's' : ''}`
-      : `${ing.quantiteRecette} ${ing.unite}`;
+    const quantiteAffichee = _quantiteIngredient(ing);
+    const qteAffichee = _estPack(ing)
+      ? `${quantiteAffichee} pack${quantiteAffichee > 1 ? 's' : ''}`
+      : `${quantiteAffichee} ${ing.unite}`;
 
     card.innerHTML = `
       <button onclick="demanderSuppression('${ing.nom.replace(/'/g, "\\'")}')"
@@ -313,7 +314,7 @@ function renderIngredients() {
           class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white active:scale-90 transition-all text-primary">
           <span class="material-symbols-outlined text-[18px]">add</span>
         </button>
-        <span class="font-bold text-primary text-sm min-w-[18px] text-center">${ing.type === 'pack' ? ing.quantitePanier : ing.quantiteRecette}</span>
+        <span class="font-bold text-primary text-sm min-w-[18px] text-center">${quantiteAffichee}</span>
         <button onclick="diminuerQuantite('${ing.nom.replace(/'/g, "\\'")}', '${ing.type}')"
           class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white active:scale-90 transition-all text-primary ${_peutDiminuer(ing) ? '' : 'opacity-30 pointer-events-none'}">
           <span class="material-symbols-outlined text-[18px]">remove</span>
@@ -335,13 +336,25 @@ function _prixIngredient(ing) {
     else prix = ((ing.prixSouk ?? ing.prix ?? 0) + (ing.prixSupermarche ?? ing.prix ?? 0)) / 2;
   }
 
-  if (ing.type === 'pack') return Math.round((ing.quantitePanier ?? 1) * prix * 100) / 100;
-  return Math.round((ing.quantiteRecette ?? 0) * prix * 100) / 100;
+  const quantite = _quantiteIngredient(ing);
+  return Math.round(quantite * prix * 100) / 100;
 }
 
 function _peutDiminuer(ing) {
-  if (ing.type === 'pack') return (ing.quantitePanier ?? 1) > 1;
-  return (ing.quantiteRecette ?? 0) > 50;
+  if (_estPack(ing)) return _quantiteIngredient(ing) > 1;
+  return _quantiteIngredient(ing) > 50;
+}
+
+function _estPack(ing) {
+  return ing.type === 'pack' || (ing.quantitePanier != null && ing.quantiteRecette == null);
+}
+
+function _quantiteIngredient(ing) {
+  if (_estPack(ing)) {
+    return Number(ing.quantitePanier ?? ing.quantiteRecette ?? ing.quantite ?? 1) || 1;
+  }
+
+  return Number(ing.quantiteRecette ?? ing.quantite ?? ing.quantitePanier ?? 0) || 0;
 }
 
 async function updateTotal() {
@@ -414,10 +427,10 @@ window.augmenterQuantite = async function(nom, type) {
     const ing = panierData.ingredients.find(i => i.nom === nom);
     if (!ing) return;
     if (type === 'pack') {
-      ing.quantitePanier = (ing.quantitePanier ?? 1) + 1;
+      ing.quantitePanier = _quantiteIngredient(ing) + 1;
     } else {
       const step = _step(ing);
-      ing.quantiteRecette = Math.round(((ing.quantiteRecette ?? step) + step) * 10) / 10;
+      ing.quantiteRecette = Math.round((_quantiteIngredient(ing) + step) * 10) / 10;
     }
     panierData = await recalculerPanierPrix(panierData, preferences);
     await sauvegarderPanier(panierData);
@@ -434,11 +447,11 @@ window.diminuerQuantite = async function(nom, type) {
     const ing = panierData.ingredients.find(i => i.nom === nom);
     if (!ing) return;
     if (type === 'pack') {
-      if ((ing.quantitePanier ?? 1) <= 1) return;
-      ing.quantitePanier = (ing.quantitePanier ?? 1) - 1;
+      if (_quantiteIngredient(ing) <= 1) return;
+      ing.quantitePanier = _quantiteIngredient(ing) - 1;
     } else {
       const step = _step(ing);
-      const nouv = Math.round(((ing.quantiteRecette ?? step) - step) * 10) / 10;
+      const nouv = Math.round((_quantiteIngredient(ing) - step) * 10) / 10;
       if (nouv <= 0) return;
       ing.quantiteRecette = nouv;
     }
@@ -466,8 +479,8 @@ function _augmenterLocal(nom, type) {
     const p = JSON.parse(raw);
     const ing = (p.ingredients || []).find(i => i.nom === nom);
     if (!ing) return;
-    if (type === 'pack') ing.quantitePanier = (ing.quantitePanier ?? 1) + 1;
-    else ing.quantiteRecette = (ing.quantiteRecette ?? 100) + 100;
+    if (type === 'pack') ing.quantitePanier = Number(ing.quantitePanier ?? 1) + 1;
+    else ing.quantiteRecette = Number(ing.quantiteRecette ?? 100) + 100;
     panierData = p;
     recalculerPanierPrix(panierData, preferences).then(async () => {
       await sauvegarderPanier(panierData);

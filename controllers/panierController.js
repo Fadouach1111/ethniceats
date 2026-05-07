@@ -69,11 +69,31 @@ function _prixUnitaire(ing, sourcePreferee) {
   // Packs : on considère `prixLigne` comme prix par pack
   if (ing.type === 'pack') return Math.round(prixLigneNum * 100) / 100;
 
-  // Flexible : prix unitaire = prixLigne / quantiteRecette (base)
-  const qteBase = Number(ing.quantiteRecette ?? 0) || 0;
+  // Flexible : prix unitaire = prixLigne / quantité de base de la recette
+  const qteBase = Number(ing.quantiteBaseRecette ?? ing.quantiteRecette ?? 0) || 0;
   if (qteBase <= 0) return 0;
   const pu = prixLigneNum / qteBase;
   return Math.round(pu * 100000) / 100000;
+}
+
+function _estPack(ing) {
+  return ing?.type === 'pack' || (ing?.quantitePanier != null && ing?.quantiteRecette == null);
+}
+
+function _quantiteFacturee(ing) {
+  if (_estPack(ing)) {
+    return Number(ing?.quantitePanier ?? ing?.quantiteRecette ?? ing?.quantite ?? 1) || 1;
+  }
+
+  return Number(ing?.quantiteRecette ?? ing?.quantite ?? ing?.quantitePanier ?? 0) || 0;
+}
+
+function _baseQuantiteRecette(ing) {
+  return Number(ing?.quantiteBaseRecette ?? ing?.quantiteRecette ?? ing?.quantite ?? 0) || 0;
+}
+
+function _baseQuantitePanier(ing) {
+  return Number(ing?.quantiteBasePanier ?? ing?.quantitePanier ?? ing?.quantiteRecette ?? ing?.quantite ?? 1) || 1;
 }
 
 /**
@@ -87,13 +107,7 @@ function _prixUnitaire(ing, sourcePreferee) {
 function _prixTotalIngredient(ing) {
   const prix = ing.prixUnitaire ?? ing.prix ?? 0;
 
-  if (ing.type === 'pack') {
-    // quantitePanier représente déjà le nombre de packs nécessaires
-    return Math.round((ing.quantitePanier ?? 1) * prix * 100) / 100;
-  }
-
-  // flexible : quantité × prix
-  const quantite = ing.quantiteRecette ?? ing.quantite ?? 0;
+  const quantite = _quantiteFacturee(ing);
   return Math.round(quantite * prix * 100) / 100;
 }
 
@@ -198,6 +212,8 @@ export async function initialiserPanier(recette, nbPortions, preferences) {
         unitePanier:    ing.unitePanier ?? ing.unite,
         quantiteRecette,
         quantitePanier,
+        quantiteBaseRecette: baseQte,
+        quantiteBasePanier: ing.type === 'pack' ? Number(ing.quantitePanier ?? 1) || 1 : quantiteRecette,
         prixUnitaire,
         // Prix bruts conservés pour recalcul éventuel
         prixSouk:       ing.prixSouk ?? ing.prixBase,
@@ -315,6 +331,8 @@ export async function getPanier() {
           unitePanier: ing.unitePanier ?? ing.unite,
           quantiteRecette,
           quantitePanier,
+          quantiteBaseRecette: Number(ing.quantiteBaseRecette ?? quantiteRecette ?? 0) || 0,
+          quantiteBasePanier: Number(ing.quantiteBasePanier ?? quantitePanier ?? 1) || 1,
           prixUnitaire: Math.round((Number(ing.prixUnitaire ?? prixUnitaire ?? 0) || 0) * 100000) / 100000,
           prixSouk: Number(ing.prixSouk ?? ing.prix ?? 0) || 0,
           prixSupermarche: Number(ing.prixSupermarche ?? ing.prix ?? 0) || 0,
@@ -414,11 +432,11 @@ export async function modifierQuantite(ingredientNom, nouvelleQuantite) {
 
     const ing = panier.ingredients[index];
 
-    if (ing.type !== 'flexible') {
+    if (_estPack(ing)) {
       throw new Error(`modifierQuantite : "${ingredientNom}" est un pack — quantité non modifiable.`);
     }
 
-    ing.quantiteRecette = Math.round(nouvelleQuantite * 1000) / 1000;
+    ing.quantiteRecette = Math.round(Number(nouvelleQuantite) * 1000) / 1000;
     ing.quantitePanier  = ing.quantiteRecette;
     panier.ingredients[index] = ing;
 
@@ -496,9 +514,7 @@ export async function calculerSousTotal(panier, preferences) {
       }
 
       const prixUnit = _prixUnitaire(ing, sourcePreferee);
-      const prixTotal = ing.type === 'pack'
-        ? (ing.quantitePanier ?? 1) * prixUnit
-        : (ing.quantiteRecette ?? 0) * prixUnit;
+      const prixTotal = _quantiteFacturee(ing) * prixUnit;
 
       return acc + prixTotal;
     }, 0);
@@ -600,7 +616,7 @@ export async function getPanierPourCheckout() {
  * @returns {{ sousTotal: number, total: number }}
  */
 function _recalculerTotaux(panier) {
-  const sousTotal = panier.ingredients.reduce((acc, i) => acc + (i.prixTotal ?? 0), 0);
+  const sousTotal = panier.ingredients.reduce((acc, i) => acc + (Number(i.prixTotal) || 0), 0);
   const stArrondi = Math.round(sousTotal * 100) / 100;
   const total     = Math.round((stArrondi + (panier.fraisLivraison ?? 0)) * 100) / 100;
   return { sousTotal: stArrondi, total };

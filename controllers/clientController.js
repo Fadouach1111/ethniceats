@@ -508,6 +508,14 @@ async function calculerPrixIngredients(ingredients, preferences) {
     const multSource   = MULTIPLICATEURS_SOURCE[sourcePreferee];
     const multPriorite = MULTIPLICATEURS_PRIORITE[priorite];
 
+    function _quantiteFacturee(ing) {
+      if (ing.type === 'pack') {
+        return Number(ing.quantitePanier ?? ing.quantiteRecette ?? ing.quantite ?? 0) || 0;
+      }
+
+      return Number(ing.quantiteRecette ?? ing.quantite ?? ing.quantitePanier ?? 0) || 0;
+    }
+
     const ingredientsCalcules = ingredients.map((ing) => {
       // Choix du prix brut selon la source
       let prixBrut;
@@ -549,12 +557,13 @@ async function calculerPrixIngredients(ingredients, preferences) {
 
       // Application du multiplicateur de priorité
       const prixUnitaire = Math.round(prixBrut * multPriorite * 100) / 100;
-      const prixLigne    = Math.round(prixUnitaire * ing.quantite * 100) / 100;
+      const quantite = _quantiteFacturee(ing);
+      const prixLigne = Math.round(prixUnitaire * quantite * 100) / 100;
 
       return {
         id:           ing.id,
         nom:          ing.nom,
-        quantite:     ing.quantite,
+        quantite,
         unite:        ing.unite,
         prixUnitaire,
         prixTotal:    prixLigne,
